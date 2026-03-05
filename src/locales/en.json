@@ -84,6 +84,7 @@
                     "Gates": "Gates",
                     "Decoders & Plexers": "Decoders & Plexers",
                     "Sequential Elements": "Sequential Elements",
+                    "Sequential (HM)": "Sequential (HM)",
                     "Annotation": "Annotation",
                     "Misc": "Misc"
                 }

@@ -45,7 +45,7 @@ var ctxPos = {
     visible: false,
 }
 let isFullViewActive = false
-let prevMobileState = null 
+let prevMobileState = null
 // FUNCTION TO SHOW AND HIDE CONTEXT MENU
 function hideContextMenu() {
     var el = document.getElementById('contextMenu')
@@ -205,7 +205,7 @@ export function objectPropertyAttributeCheckedUpdate() {
     updateCanvasSet(true)
     wireToBeCheckedSet(1)
     if (simulationArea.lastSelected && simulationArea.lastSelected[this.name]) {
-        simulationArea.lastSelected[this.name](this.value)
+        simulationArea.lastSelected[this.name](this.checked)
     } else {
         circuitProperty[this.name](this.checked)
     }
@@ -252,7 +252,7 @@ export function hideProperties() {
     $('.objectPropertyAttribute').unbind('change keyup paste click')
 }
 /**
- * checkss the input is safe or not
+ * checks the input is safe or not
  * @param {HTML} unsafe - the html which we wants to escape
  * @category ux
  */

@@ -60,7 +60,13 @@ export const circuitElementList = [
     "Dlatch",
     "TB_Input",
     "TB_Output",
-    "ForceGate"
+    "ForceGate",
+    "DFF",
+    "TFF",
+    "RSFF",
+    "JKFF",
+    "DLatch",
+    "RSLatch"
 ]
 const annotationList = ["Text", "Rectangle", "Arrow", "ImageAnnotation"]
 export const moduleList = [...circuitElementList, ...annotationList]
@@ -86,7 +92,13 @@ export const inputList = [
     "Input",
     "Clock",
     "Button",
-    "Counter"
+    "Counter",
+    "DFF",
+    "TFF",
+    "RSFF",
+    "JKFF",
+    "DLatch",
+    "RSLatch"
 ]
 export const subCircuitInputList = [
     "Random",
@@ -162,6 +174,14 @@ export const elementHierarchy: Record<string, NameLabel[]> = {
         { name: "RAM", label: "RAM" },
         { name: "verilogRAM", label: "Verilog RAM" },
         { name: "EEPROM", label: "EEPROM" }
+    ],
+    "Sequential (HM)": [
+        { name: "DFF",    label: "D Flip Flop" },
+        { name: "TFF",    label: "T Flip Flop" },
+        { name: "RSFF",   label: "RS Flip Flop" },
+        { name: "JKFF",   label: "JK Flip Flop" },
+        { name: "DLatch",  label: "D Latch" },
+        { name: "RSLatch", label: "RS Latch" }
     ],
     "Annotation": [
         { name: "Rectangle", label: "Rectangle" },

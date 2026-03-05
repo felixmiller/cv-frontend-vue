@@ -205,7 +205,7 @@ export function objectPropertyAttributeCheckedUpdate() {
     updateCanvasSet(true)
     wireToBeCheckedSet(1)
     if (simulationArea.lastSelected && simulationArea.lastSelected[this.name]) {
-        simulationArea.lastSelected[this.name](this.value)
+        simulationArea.lastSelected[this.name](this.checked)
     } else {
         circuitProperty[this.name](this.checked)
     }

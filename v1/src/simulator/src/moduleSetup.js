@@ -55,6 +55,12 @@ import SRflipFlop from './sequential/SRflipFlop'
 import TflipFlop from './sequential/TflipFlop'
 import TTY from './sequential/TTY'
 import ForceGate from './sequential/ForceGate'
+import DFF from './sequential/DFF'
+import TFF from './sequential/TFF'
+import RSFF from './sequential/RSFF'
+import JKFF from './sequential/JKFF'
+import DLatch from './sequential/DLatch'
+import RSLatch from './sequential/RSLatch'
 import TB_Input from './testbench/testbenchInput'
 import TB_Output from './testbench/testbenchOutput'
 import verilogMultiplier from './modules/verilogMultiplier'
@@ -130,6 +136,12 @@ export default function setupModules() {
         TB_Input,
         TB_Output,
         ForceGate,
+        DFF,
+        TFF,
+        RSFF,
+        JKFF,
+        DLatch,
+        RSLatch,
     }
     Object.assign(modules, moduleSet)
 }

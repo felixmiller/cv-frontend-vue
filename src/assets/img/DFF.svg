@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+    <rect x="7" y="7" width="34" height="36" fill="#fff" fill-opacity=".8" stroke="#000" stroke-width="3" stroke-miterlimit="10"/>
+    <!-- Clock triangle -->
+    <path fill="none" stroke="#000" stroke-width="2" stroke-miterlimit="10" d="M7 28 L13 33 L7 38"/>
+    <!-- Input labels -->
+    <text font-family="Raleway" font-size="11" fill="#000" x="11" y="19" dominant-baseline="middle">D</text>
+    <text font-family="Raleway" font-size="11" fill="#000" x="15" y="33" dominant-baseline="middle">C</text>
+    <!-- Q label -->
+    <text font-family="Raleway" font-size="11" fill="#000" x="39" y="19" text-anchor="end" dominant-baseline="middle">Q</text>
+    <!-- Qn label + overbar -->
+    <text font-family="Raleway" font-size="11" fill="#000" x="36" y="35" text-anchor="end" dominant-baseline="middle">Q</text>
+    <line x1="29" y1="29" x2="36" y2="29" stroke="#000" stroke-width="1"/>
+    <!-- Qn bubble -->
+    <circle cx="41" cy="35" r="3" fill="#fff" stroke="#000" stroke-width="1.5"/>
+    <!-- Port dots -->
+    <circle cx="4" cy="19" r="3" fill="green"/>
+    <circle cx="4" cy="33" r="3" fill="green"/>
+    <circle cx="46" cy="19" r="3" fill="green"/>
+    <circle cx="46" cy="35" r="3" fill="green"/>
+</svg>
