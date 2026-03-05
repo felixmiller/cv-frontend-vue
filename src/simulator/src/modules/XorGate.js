@@ -1,7 +1,8 @@
 import CircuitElement from '../circuitElement'
 import Node, { findNode } from '../node'
 import { simulationArea } from '../simulationArea'
-import { correctWidth, bezierCurveTo, moveTo, arc2 } from '../canvasApi'
+import { correctWidth, bezierCurveTo, moveTo, arc2, drawIecSymbol } from '../canvasApi'
+import { getGateStyle } from '../engine'
 import { changeInputSize } from '../modules'
 import { gateGenerateVerilog } from '../utils'
 
@@ -101,6 +102,10 @@ export default class XorGate extends CircuitElement {
      */
     customDraw() {
         var ctx = simulationArea.context
+        if (getGateStyle() === 'IEC') {
+            drawIecSymbol(ctx, this, this.inputSize > 2 ? '2k+1' : '=1', false, 20)
+            return
+        }
         ctx.strokeStyle = colors['stroke']
         ctx.lineWidth = correctWidth(3)
 

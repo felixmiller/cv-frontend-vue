@@ -7,10 +7,12 @@ import {
     moveTo,
     arc2,
     drawCircle2,
+    drawIecSymbol,
 } from '../canvasApi'
 import { gateGenerateVerilog } from '../utils'
 
 import { changeInputSize } from '../modules'
+import { getGateStyle } from '../engine'
 /**
  * @class
  * XnorGate
@@ -108,6 +110,10 @@ export default class XnorGate extends CircuitElement {
      */
     customDraw() {
         var ctx = simulationArea.context
+        if (getGateStyle() === 'IEC') {
+            drawIecSymbol(ctx, this, this.inputSize > 2 ? '2k+1' : '=1', true, 30)
+            return
+        }
         ctx.strokeStyle = colors['stroke']
         ctx.lineWidth = correctWidth(3)
 

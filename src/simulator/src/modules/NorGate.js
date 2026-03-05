@@ -8,8 +8,10 @@ import {
     bezierCurveTo,
     moveTo,
     drawCircle2,
+    drawIecSymbol,
 } from '../canvasApi'
 import { changeInputSize } from '../modules'
+import { getGateStyle } from '../engine'
 /**
  * @class
  * NorGate
@@ -104,6 +106,10 @@ export default class NorGate extends CircuitElement {
      */
     customDraw() {
         var ctx = simulationArea.context
+        if (getGateStyle() === 'IEC') {
+            drawIecSymbol(ctx, this, '≥1', true, 30)
+            return
+        }
         ctx.strokeStyle = colors['stroke']
         ctx.lineWidth = correctWidth(3)
 

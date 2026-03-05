@@ -1,7 +1,8 @@
 import CircuitElement from '../circuitElement'
 import Node, { findNode } from '../node'
 import { simulationArea } from '../simulationArea'
-import { correctWidth, lineTo, moveTo, arc } from '../canvasApi'
+import { correctWidth, lineTo, moveTo, arc, drawIecSymbol } from '../canvasApi'
+import { getGateStyle } from '../engine'
 import { changeInputSize } from '../modules'
 import { colors } from '../themer/themer'
 import { gateGenerateVerilog } from '../utils'
@@ -106,6 +107,10 @@ export default class AndGate extends CircuitElement {
      */
     customDraw() {
         var ctx = simulationArea.context
+        if (getGateStyle() === 'IEC') {
+            drawIecSymbol(ctx, this, '&', false, 20)
+            return
+        }
         ctx.beginPath()
         ctx.lineWidth = correctWidth(3)
         ctx.strokeStyle = colors['stroke'] // ("rgba(0,0,0,1)");

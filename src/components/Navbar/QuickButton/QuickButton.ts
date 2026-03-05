@@ -1,4 +1,5 @@
 import logixFunction from '#/simulator/src/data'
+import { changeGateStyle, getGateStyle } from '#/simulator/src/engine'
 import { deleteSelected } from '#/simulator/src/ux'
 import undo from '#/simulator/src/data/undo'
 import redo from '#/simulator/src/data/redo'
@@ -34,4 +35,10 @@ export function decrement(): void {
 }
 export function increment(): void {
     ZoomIn()
+}
+export function toggleGateStyle(): void {
+    changeGateStyle(getGateStyle() === 'IEC' ? '' : 'IEC')
+}
+export function isIecMode(): boolean {
+    return getGateStyle() === 'IEC'
 }

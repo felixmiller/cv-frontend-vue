@@ -611,6 +611,62 @@ export function fillText3(
     )
 }
 
+/**
+ * Draw an IEC 60617 logic gate symbol (rectangle with label + optional inversion bubble).
+ * Purely cosmetic — node positions are unchanged from the ANSI layout.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {CircuitElement} element - the gate being drawn
+ * @param {string} symbolText - IEC label: '&', '≥1', '=1', or '1'
+ * @param {boolean} inverted - true for NAND/NOR/XNOR/NOT (draws output bubble)
+ * @param {number} outputX - x offset of the output node (20 for AND/OR/XOR/NOT, 30 for NAND/NOR/XNOR)
+ */
+export function drawIecSymbol(ctx, element, symbolText, inverted, outputX) {
+    const { x: xx, y: yy, direction } = element
+    // Rectangle half-height: outermost node position + 10px padding on each side.
+    // Uses floor so size only increases at even input counts (new outermost node pair).
+    const halfH = (Math.floor((element.inputSize ?? 1) / 2) + 1) * 10
+    // Left edge: where input nodes attach (XOR/XNOR use x=-20, others x=-10)
+    const leftX = element.inp?.length > 0 ? element.inp[0].x : (element.inp1?.x ?? -10)
+    // Bubble radius and geometry
+    const bubbleR = 5
+    // Rectangle right edge: for inverted gates, leave room for the bubble outside
+    const rectRight = inverted ? outputX - 2 * bubbleR : outputX
+
+    ctx.beginPath()
+    ctx.lineWidth = correctWidth(3)
+    ctx.strokeStyle = colors['stroke']
+    ctx.fillStyle = colors['fill']
+    if (
+        (element.hover && !simulationArea.shiftDown) ||
+        simulationArea.lastSelected === element ||
+        simulationArea.multipleObjectSelections.includes(element)
+    ) {
+        ctx.fillStyle = colors['hover_select']
+    }
+
+    moveTo(ctx, leftX, -halfH, xx, yy, direction)
+    lineTo(ctx, rectRight, -halfH, xx, yy, direction)
+    lineTo(ctx, rectRight, halfH, xx, yy, direction)
+    lineTo(ctx, leftX, halfH, xx, yy, direction)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+
+    // Symbol text centered in rectangle
+    ctx.beginPath()
+    ctx.fillStyle = colors['text']
+    fillText4(ctx, symbolText, (leftX + rectRight) / 2, 0, xx, yy, direction, 14, 'center')
+    ctx.fill()
+
+    // Inversion bubble sits outside the rectangle, right edge aligns with output node
+    if (inverted) {
+        ctx.beginPath()
+        drawCircle2(ctx, outputX - bubbleR, 0, bubbleR, xx, yy, direction)
+        ctx.stroke()
+    }
+}
+
 export const oppositeDirection = {
     RIGHT: 'LEFT',
     LEFT: 'RIGHT',

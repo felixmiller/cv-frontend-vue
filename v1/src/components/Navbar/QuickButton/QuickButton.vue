@@ -70,6 +70,19 @@
                 <i style="color: #ddd" class="fas fa-expand-arrows-alt"></i>
             </button>
         </div>
+        <div
+            class="gate-style-toggle"
+            role="switch"
+            :aria-checked="iecMode"
+            title="Toggle Gate Style (ANSI / IEC)"
+            @click="onToggleGateStyle"
+        >
+            <span class="gate-style-label" :class="{ active: !iecMode }">ANSI</span>
+            <div class="toggle-track" :class="{ iec: iecMode }">
+                <div class="toggle-thumb"></div>
+            </div>
+            <span class="gate-style-label" :class="{ active: iecMode }">IEC</span>
+        </div>
         <div class="zoom-slider">
             <button class="zoom-slider-decrement" @click="decrement">-</button>
             <input
@@ -88,7 +101,14 @@
 </template>
 
 <script lang="ts" setup>
-import { saveOnline, saveOffline, deleteSelectedItem, createSaveAsImgPrompt, zoomToFit, undoit, redoit, view, decrement, increment } from './QuickButton';
+import { ref } from 'vue';
+import { saveOnline, saveOffline, deleteSelectedItem, createSaveAsImgPrompt, zoomToFit, undoit, redoit, view, decrement, increment, toggleGateStyle, isIecMode } from './QuickButton';
+
+const iecMode = ref(isIecMode());
+function onToggleGateStyle(): void {
+    toggleGateStyle();
+    iecMode.value = isIecMode();
+}
 
 function dragover(): void {
     const quickBtn: HTMLElement | null = document.querySelector('.quick-btn')
@@ -201,6 +221,47 @@ function dragover(): void {
 
 .quick-btn-view {
     color: white
+}
+
+.gate-style-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+.gate-style-label {
+    font-size: 10px;
+    font-weight: bold;
+    color: rgba(255,255,255,0.4);
+    transition: color 0.15s;
+}
+.gate-style-label.active {
+    color: white;
+}
+.toggle-track {
+    width: 26px;
+    height: 14px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 7px;
+    position: relative;
+    transition: background 0.2s;
+}
+.toggle-track.iec {
+    background: #4caf50;
+}
+.toggle-thumb {
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+.toggle-track.iec .toggle-thumb {
+    transform: translateX(12px);
 }
 
 .zoom-slider {

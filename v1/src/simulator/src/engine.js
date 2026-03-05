@@ -14,6 +14,7 @@ import { resetup } from './setup'
 import { verilogModeGet } from './Verilog2CV'
 import { renderOrder, updateOrder } from './metadata'
 import ContentionPendingData from './contention';
+import { ref } from 'vue'
 
 /**
  * Core of the simulation and rendering algorithm.
@@ -212,6 +213,36 @@ export function updateSubcircuitSet(param) {
     }
     updateSubcircuit = param
     return false
+}
+
+/**
+ * Current gate drawing style: '' (ANSI) or 'IEC'
+ * @type {string}
+ * @category engine
+ */
+var gateStyle = localStorage.getItem('gateStyle') || ''
+export const gateStyleRef = ref(gateStyle)
+
+/**
+ * Returns the current gate drawing style.
+ * @returns {string}
+ * @category engine
+ */
+export function getGateStyle() {
+    return gateStyle
+}
+
+/**
+ * Changes the gate drawing style and triggers a canvas refresh.
+ * @param {string} style - '' for ANSI or 'IEC' for IEC 60617 symbols
+ * @category engine
+ */
+export function changeGateStyle(style) {
+    gateStyle = style || ''
+    gateStyleRef.value = gateStyle
+    localStorage.setItem('gateStyle', gateStyle)
+    updateCanvasSet(true)
+    scheduleUpdate(1)
 }
 
 /**

@@ -39,7 +39,7 @@
                     @mouseover="getTooltipText(element.name)"
                     @mouseleave="tooltipText = 'null'"
                 >
-                    <img :src="element.imgURL" :alt="element.name" />
+                    <img :src="getAdaptiveImgUrl(element.name, currentGateStyle)" :alt="element.name" />
                 </div>
             </div>
             <v-expansion-panels
@@ -74,7 +74,7 @@
                                 @mouseleave="tooltipText = 'null'"
                             >
                                 <img
-                                    :src="element.imgURL"
+                                    :src="getAdaptiveImgUrl(element.name, currentGateStyle)"
                                     :alt="element.name"
                                 />
                             </div>
@@ -120,7 +120,7 @@
                                 @mouseleave="tooltipText = 'null'"
                             >
                                 <img
-                                    :src="element.imgURL"
+                                    :src="getAdaptiveImgUrl(element.name, currentGateStyle)"
                                     :alt="element.name"
                                 />
                             </div>
@@ -142,15 +142,18 @@
 <script lang="ts" setup>
 import PanelHeader from '../Shared/PanelHeader.vue'
 import { elementHierarchy } from '#/simulator/src/metadata'
-import { createElement, getImgUrl } from './ElementsPanel'
+import { createElement, getAdaptiveImgUrl } from './ElementsPanel'
+import { gateStyleRef } from '#/simulator/src/engine'
 import modules from '#/simulator/src/modules'
-import { onBeforeMount, onMounted, ref } from 'vue'
+import { onBeforeMount, onMounted, ref, watch } from 'vue'
 import { useLayoutStore } from '#/store/layoutStore'
 var panelData = []
 window.elementPanelList = []
 const layoutStore = useLayoutStore()
 
 const elementsPanelRef = ref<HTMLElement | null>(null);
+const currentGateStyle = ref(gateStyleRef.value)
+watch(gateStyleRef, (v) => { currentGateStyle.value = v })
 
 onBeforeMount(() => {
     for (const category in elementHierarchy) {
@@ -159,8 +162,7 @@ onBeforeMount(() => {
             const element = elementHierarchy[category][i]
             if (!element.name.startsWith('verilog')) {
                 window.elementPanelList.push(element.label)
-                element['imgURL'] = getImgUrl(element.name)
-                categoryData.push(element)
+categoryData.push(element)
             }
         }
         panelData.push([category, categoryData])

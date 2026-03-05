@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+    <path fill="#FFF" stroke="#000" paint-order="fill stroke markers" d="M7 5h30v40H7z" fill-opacity=".8" stroke-miterlimit="10" stroke-width="3"/>
+    <path fill="none" stroke="#000" paint-order="fill stroke markers" d="M47 25a5 5 0 110-.005" stroke-miterlimit="10" stroke-width="3"/>
+    <text font-family="Raleway" font-size="14px" text-decoration="normal" x="22" y="50%" text-anchor="middle" dominant-baseline="central">=1</text>
+    <path fill="green" paint-order="stroke fill markers" d="M10 15a3 3 0 110-.003zM10 35a3 3 0 110-.003zM50 25a3 3 0 110-.003z"/>
+</svg>

@@ -1,7 +1,8 @@
 import CircuitElement from '../circuitElement'
 import Node, { findNode } from '../node'
 import { simulationArea } from '../simulationArea'
-import { correctWidth, lineTo, moveTo, drawCircle2, arc } from '../canvasApi'
+import { correctWidth, lineTo, moveTo, drawCircle2, arc, drawIecSymbol } from '../canvasApi'
+import { getGateStyle } from '../engine'
 import { changeInputSize } from '../modules'
 import { gateGenerateVerilog } from '../utils'
 
@@ -102,6 +103,10 @@ export default class NandGate extends CircuitElement {
      */
     customDraw() {
         var ctx = simulationArea.context
+        if (getGateStyle() === 'IEC') {
+            drawIecSymbol(ctx, this, '&', true, 30)
+            return
+        }
         ctx.beginPath()
         ctx.lineWidth = correctWidth(3)
         ctx.strokeStyle = colors['stroke']

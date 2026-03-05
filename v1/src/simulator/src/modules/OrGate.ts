@@ -1,7 +1,8 @@
 import CircuitElement from '../circuitElement';
 import Node, { findNode } from '../node';
 import { simulationArea } from '../simulationArea';
-import { correctWidth, bezierCurveTo, moveTo } from '../canvasApi';
+import { correctWidth, bezierCurveTo, moveTo, drawIecSymbol } from '../canvasApi';
+import { getGateStyle } from '../engine';
 import { changeInputSize } from '../modules';
 import { gateGenerateVerilog } from '../utils';
 
@@ -65,6 +66,10 @@ export default class OrGate extends CircuitElement {
     customDraw() {
         var ctx = simulationArea.context;
         if (ctx) {
+            if (getGateStyle() === 'IEC') {
+                drawIecSymbol(ctx, this, '≥1', false, 20)
+                return
+            }
             ctx.strokeStyle = colors['stroke'];
             ctx.lineWidth = correctWidth(3);
 

@@ -27,6 +27,8 @@ import {
     updateSubcircuitSet,
     forceResetNodesSet,
     changeLightMode,
+    changeGateStyle,
+    getGateStyle,
 } from './engine'
 import { toggleLayoutMode, layoutModeGet } from './layoutMode'
 import { setProjectName } from './data/save'
@@ -48,6 +50,8 @@ export const circuitProperty = {
     changeClockEnable,
     changeInputSize,
     changeLightMode,
+    changeGateStyle,
+    getGateStyle,
     changeClockTime
 }
 
