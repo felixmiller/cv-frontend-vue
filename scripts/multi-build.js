@@ -21,6 +21,10 @@ for (const version of versions) {
   console.log(`Building for version: ${version}`);
 
   try {
+    // Pre-create nested output dir — rollup writes <version>/index.html inside outDir
+    // but doesn't create the subdirectory itself; flatten step handles it afterward
+    fs.mkdirSync(path.join('dist', 'simulatorvue', version, version), { recursive: true });
+
     // Run vite build with VITE_SIM_VERSION set
     execSync(`npx vite build`, {
       env: { ...process.env, VITE_SIM_VERSION: version },
