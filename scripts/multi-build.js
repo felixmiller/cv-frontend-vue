@@ -25,9 +25,11 @@ for (const version of versions) {
     // but doesn't create the subdirectory itself; flatten step handles it afterward
     fs.mkdirSync(path.join('dist', 'simulatorvue', version, version), { recursive: true });
 
-    // Run vite build with VITE_SIM_VERSION set
+    // Run vite build with VITE_SIM_VERSION and VITE_BASE set explicitly
+    // VITE_BASE must be set here to guarantee the correct asset base path in
+    // all environments (Docker, CI, etc.) regardless of DESKTOP_MODE detection
     execSync(`npx vite build`, {
-      env: { ...process.env, VITE_SIM_VERSION: version },
+      env: { ...process.env, VITE_SIM_VERSION: version, VITE_BASE: `/simulatorvue/${version}/` },
       stdio: 'inherit'
     });
 
