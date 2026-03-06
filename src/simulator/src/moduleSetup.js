@@ -61,6 +61,9 @@ import RSFF from './sequential/RSFF'
 import JKFF from './sequential/JKFF'
 import DLatch from './sequential/DLatch'
 import RSLatch from './sequential/RSLatch'
+import PAL from './sequential/PAL'
+import PLA from './sequential/PLA'
+import PLE from './sequential/PLE'
 import TB_Input from './testbench/testbenchInput'
 import TB_Output from './testbench/testbenchOutput'
 import verilogMultiplier from './modules/verilogMultiplier'
@@ -142,6 +145,9 @@ export default function setupModules() {
         JKFF,
         DLatch,
         RSLatch,
+        PAL,
+        PLA,
+        PLE,
     }
     Object.assign(modules, moduleSet)
 }

@@ -66,7 +66,10 @@ export const circuitElementList = [
     "RSFF",
     "JKFF",
     "DLatch",
-    "RSLatch"
+    "RSLatch",
+    "PAL",
+    "PLA",
+    "PLE"
 ]
 const annotationList = ["Text", "Rectangle", "Arrow", "ImageAnnotation"]
 export const moduleList = [...circuitElementList, ...annotationList]
@@ -182,6 +185,11 @@ export const elementHierarchy: Record<string, NameLabel[]> = {
         { name: "JKFF",   label: "JK Flip Flop" },
         { name: "DLatch",  label: "D Latch" },
         { name: "RSLatch", label: "RS Latch" }
+    ],
+    "Programmable Logic (HM)": [
+        { name: "PAL", label: "PAL" },
+        { name: "PLA", label: "PLA" },
+        { name: "PLE", label: "PLE/ROM" }
     ],
     "Annotation": [
         { name: "Rectangle", label: "Rectangle" },

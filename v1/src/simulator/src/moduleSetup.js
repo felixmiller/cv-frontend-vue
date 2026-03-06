@@ -59,6 +59,9 @@ import DFF from './sequential/DFF'
 import TFF from './sequential/TFF'
 import RSFF from './sequential/RSFF'
 import JKFF from './sequential/JKFF'
+import PAL from './sequential/PAL'
+import PLA from './sequential/PLA'
+import PLE from './sequential/PLE'
 import DLatch from './sequential/DLatch'
 import RSLatch from './sequential/RSLatch'
 import TB_Input from './testbench/testbenchInput'
@@ -140,6 +143,9 @@ export default function setupModules() {
         TFF,
         RSFF,
         JKFF,
+        PAL,
+        PLA,
+        PLE,
         DLatch,
         RSLatch,
     }
