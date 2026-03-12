@@ -19,7 +19,8 @@ export default class RSLatch extends CircuitElement {
         x, y, scope = globalScope, dir = 'RIGHT', bitWidth = 1,
         hasPreset = false, hasClear = false,
         resetPolarity = 'high', gatePolarity = 'high',
-        hasEnable = false, enablePolarity = 'high', outputType = 'pushpull'
+        hasEnable = false, enablePolarity = 'high', outputType = 'pushpull',
+        hasClock = true
     ) {
         super(x, y, scope, dir, 1)
         this.directionFixed = true
@@ -31,12 +32,17 @@ export default class RSLatch extends CircuitElement {
         this.hasClear = hasClear
         this.resetPolarity = resetPolarity
         this.gatePolarity = gatePolarity
+        this.hasClock = hasClock
         this.hasEnable = hasEnable
         this.enablePolarity = enablePolarity
         this.outputType = outputType
 
         this.sInp = new Node(-30, -20, 0, this, 1, 'S')
         this.gInp = new Node(this._gNodeX(), 0, 0, this, 1, 'C')
+        if (!this.hasClock) {
+            this.nodeList.splice(this.nodeList.indexOf(this.gInp), 1)
+            this.gInp.disabled = true
+        }
         this.rInp = new Node(-30,  20, 0, this, 1, 'R')
 
         this.qOutput  = new Node(40, -20, 1, this, 1, 'Q')
@@ -112,7 +118,20 @@ export default class RSLatch extends CircuitElement {
     setGatePolarity(val) {
         if (this.gatePolarity === val) return
         this.gatePolarity = val
-        this._moveNode(this.gInp, this._gNodeX(), this.gInp.lefty)
+        if (this.hasClock) this._moveNode(this.gInp, this._gNodeX(), this.gInp.lefty)
+        scheduleUpdate()
+    }
+
+    setHasClock(val) {
+        const active = (val === true || val === 'true')
+        if (this.hasClock === active) return
+        this.hasClock = active
+        this.gInp.disabled = !active
+        if (active && !this.nodeList.includes(this.gInp)) {
+            this._moveNode(this.gInp, this._gNodeX(), 0)
+            this.nodeList.push(this.gInp)
+        }
+        if (!active) { const i = this.nodeList.indexOf(this.gInp); if (i !== -1) this.nodeList.splice(i, 1) }
         scheduleUpdate()
     }
 
@@ -141,6 +160,7 @@ export default class RSLatch extends CircuitElement {
     isResolvable() { return true }
 
     _isGateActive() {
+        if (!this.hasClock) return true
         return this.gatePolarity === 'high' ? this.gInp.value === 1 : this.gInp.value === 0
     }
 
@@ -214,6 +234,7 @@ export default class RSLatch extends CircuitElement {
                 this.hasPreset, this.hasClear,
                 this.resetPolarity, this.gatePolarity,
                 this.hasEnable, this.enablePolarity, this.outputType,
+                this.hasClock,
             ],
         }
     }
@@ -246,13 +267,15 @@ export default class RSLatch extends CircuitElement {
         ctx.textBaseline = 'middle'
 
         fillText3(ctx, 'S', -25, -20, xx, yy, 14, 'Raleway', 'left')
-        fillText3(ctx, 'C', -25,   0, xx, yy, 14, 'Raleway', 'left')
         fillText3(ctx, 'R', -25,  20, xx, yy, 14, 'Raleway', 'left')
 
-        if (this.gatePolarity === 'low') {
-            ctx.lineWidth = correctWidth(3); ctx.lineCap = 'round'
-            ctx.beginPath(); drawCircle2(ctx, -35, 0, 4, xx, yy, this.direction); ctx.stroke()
-            ctx.lineWidth = correctWidth(1.5)
+        if (this.hasClock) {
+            fillText3(ctx, 'C', -25,   0, xx, yy, 14, 'Raleway', 'left')
+            if (this.gatePolarity === 'low') {
+                ctx.lineWidth = correctWidth(3); ctx.lineCap = 'round'
+                ctx.beginPath(); drawCircle2(ctx, -35, 0, 4, xx, yy, this.direction); ctx.stroke()
+                ctx.lineWidth = correctWidth(1.5)
+            }
         }
 
         // Q stub (no bubble) + Qn bubble
@@ -365,11 +388,18 @@ RSLatch.prototype.mutableProperties = {
         options: ['low', 'high'],
         func: 'setResetPolarity',
     },
+    hasClock: {
+        name: 'Control Input',
+        type: 'checkbox',
+        func: 'setHasClock',
+    },
     gatePolarity: {
-        name: 'Gate Polarity',
+        name: 'Control Polarity',
         type: 'select',
         options: ['high', 'low'],
         func: 'setGatePolarity',
+        condition: 'hasClock',
+        conditionValues: [true],
     },
     hasEnable: {
         name: 'Enable Input',
