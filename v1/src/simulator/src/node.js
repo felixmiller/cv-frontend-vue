@@ -42,11 +42,14 @@ export function replace(node, index) {
     }
     var { scope } = node
     var { parent } = node
+    var wasInNodeList = parent.nodeList.includes(node)
+    var wasDisabled = node.disabled
     parent.nodeList = parent.nodeList.filter(x=> x !== node);
     node.delete()
     node = scope.allNodes[index]
     node.parent = parent
-    parent.nodeList.push(node)
+    node.disabled = wasDisabled
+    if (wasInNodeList) parent.nodeList.push(node)
     node.updateRotation()
     node.scope.timeStamp = new Date().getTime()
     return node
