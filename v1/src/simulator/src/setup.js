@@ -138,7 +138,7 @@ async function fetchProjectData(projectId) {
  */
 async function loadProjectData() {
     window.logixProjectId = window.logixProjectId ?? 0
-    if (window.logixProjectId !== 0) {
+    if (window.logixProjectId != 0) {
         $('.loadingIcon').fadeIn()
         await fetchProjectData(window.logixProjectId)
     } else if (localStorage.getItem('recover_login') && window.isUserLoggedIn) {
