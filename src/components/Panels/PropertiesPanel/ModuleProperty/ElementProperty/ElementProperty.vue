@@ -65,7 +65,7 @@
     />
 
     <div v-for="(value, name) in obj.mutableProperties" :key="name" :class="{ 'prop-inline': value.sameRow }">
-        <template v-if="isPropVisible(value, obj)">
+        <template v-if="visibilityMap[name] !== false">
             <InputGroups
                 v-if="value.type === 'number'"
                 :property-name="value.name"
@@ -143,20 +143,53 @@ const props = defineProps({
 })
 const labelDirections = ['RIGHT', 'DOWN', 'LEFT', 'UP']
 
-// Poll every 100ms to re-evaluate conditional visibility.
-// obj is a plain JS object (not reactive), so changes to its properties
-// won't trigger Vue re-renders unless we force it with this counter.
-const _tick = ref(0)
+// obj is a plain JS object (not reactive), so we poll to detect property
+// changes that affect conditional visibility.  We keep a separate reactive
+// map so that Vue only re-renders when a visibility value actually flips —
+// not on every tick — which prevents the label <input> from being
+// destroyed/recreated (that would kill jQuery handlers and reset its value).
+const visibilityMap = ref<Record<string, boolean>>({})
 let _intervalId: ReturnType<typeof setInterval> | undefined
-onMounted(() => { _intervalId = setInterval(() => { _tick.value++ }, 100) })
-onUnmounted(() => { if (_intervalId !== undefined) clearInterval(_intervalId) })
 
-function isPropVisible(value: any, obj: any): boolean {
-    void _tick.value  // reactive dependency — forces re-evaluation on each tick
-    if (!value.condition) return true
-    const conditionVal = obj[value.condition]
-    return value.conditionValues.includes(conditionVal)
+function computeVisibility(): Record<string, boolean> {
+    const map: Record<string, boolean> = {}
+    const mp = props.obj?.mutableProperties
+    if (mp) {
+        for (const [name, value] of Object.entries(mp) as [string, any][]) {
+            if (!value.condition) {
+                map[name] = true
+            } else {
+                map[name] = value.conditionValues.includes(props.obj[value.condition])
+            }
+        }
+    }
+    return map
 }
+
+function pollVisibility() {
+    const next = computeVisibility()
+    // Only update the ref (triggering re-render) when something changed
+    const prev = visibilityMap.value
+    for (const key of Object.keys(next)) {
+        if (prev[key] !== next[key]) {
+            visibilityMap.value = next
+            return
+        }
+    }
+    // Check for removed keys
+    for (const key of Object.keys(prev)) {
+        if (!(key in next)) {
+            visibilityMap.value = next
+            return
+        }
+    }
+}
+
+onMounted(() => {
+    visibilityMap.value = computeVisibility()
+    _intervalId = setInterval(pollVisibility, 100)
+})
+onUnmounted(() => { if (_intervalId !== undefined) clearInterval(_intervalId) })
 </script>
 
 <style scoped>
