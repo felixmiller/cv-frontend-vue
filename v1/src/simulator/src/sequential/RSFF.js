@@ -64,6 +64,7 @@ export default class RSFF extends CircuitElement {
         }
 
         this.state = 0
+        this.masterState = 0
         this.prevClkState = 0
     }
 
@@ -213,29 +214,41 @@ export default class RSFF extends CircuitElement {
         if (this.clkInp.value === undefined) { this.prevClkState = undefined; return }
         const activeEdge = this.clockPolarity === 'pos' ? 1 : 0
 
+        // Async preset/clear override everything
         if (this.hasClear && this.resetType === 'async' && this._isResetAsserted(this.clrNode)) {
-            this.state = 0; this._commitOutputs(); this.prevClkState = this.clkInp.value; return
+            this.masterState = this.state = 0
+            this._commitOutputs(); this.prevClkState = this.clkInp.value; return
         }
         if (this.hasPreset && this.resetType === 'async' && this._isResetAsserted(this.preNode)) {
-            this.state = 1; this._commitOutputs(); this.prevClkState = this.clkInp.value; return
+            this.masterState = this.state = 1
+            this._commitOutputs(); this.prevClkState = this.clkInp.value; return
         }
 
-        if (this.clkInp.value === activeEdge && this.prevClkState !== activeEdge) {
+        // Master-slave: sample S/R into masterState while clock is inactive,
+        // transfer masterState → state on the active edge.
+        if (this.clkInp.value !== activeEdge) {
+            if (this._isEnabled()) {
+                const s = this.sInp.value
+                const r = this.rInp.value
+                if (s === 1 && r === 1) {
+                    this.masterState = undefined
+                } else if (s === 1) {
+                    this.masterState = 1
+                } else if (r === 1) {
+                    this.masterState = 0
+                } else {
+                    this.masterState = this.state
+                }
+            }
+        } else if (this.prevClkState !== activeEdge) {
+            // Active edge — transfer master to slave
             if (this._isEnabled()) {
                 if (this.hasClear && this.resetType === 'sync' && this._isResetAsserted(this.clrNode)) {
                     this.state = 0
                 } else if (this.hasPreset && this.resetType === 'sync' && this._isResetAsserted(this.preNode)) {
                     this.state = 1
                 } else {
-                    const s = this.sInp.value
-                    const r = this.rInp.value
-                    if (s === 1 && r === 1) {
-                        this.state = undefined
-                    } else if (s === 1) {
-                        this.state = 1
-                    } else if (r === 1) {
-                        this.state = 0
-                    }
+                    this.state = this.masterState
                 }
             }
         }

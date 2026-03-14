@@ -64,6 +64,7 @@ export default class JKFF extends CircuitElement {
         }
 
         this.state = 0
+        this.masterState = 0
         this.prevClkState = 0
     }
 
@@ -212,29 +213,45 @@ export default class JKFF extends CircuitElement {
         if (this.clkInp.value === undefined) { this.prevClkState = undefined; return }
         const activeEdge = this.clockPolarity === 'pos' ? 1 : 0
 
+        // Async preset/clear override everything
         if (this.hasClear && this.resetType === 'async' && this._isResetAsserted(this.clrNode)) {
-            this.state = 0; this._commitOutputs(); this.prevClkState = this.clkInp.value; return
+            this.masterState = this.state = 0
+            this._commitOutputs(); this.prevClkState = this.clkInp.value; return
         }
         if (this.hasPreset && this.resetType === 'async' && this._isResetAsserted(this.preNode)) {
-            this.state = 1; this._commitOutputs(); this.prevClkState = this.clkInp.value; return
+            this.masterState = this.state = 1
+            this._commitOutputs(); this.prevClkState = this.clkInp.value; return
         }
 
-        if (this.clkInp.value === activeEdge && this.prevClkState !== activeEdge) {
+        // Master-slave: sample inputs into masterState while clock is
+        // inactive, transfer masterState → state on the active edge.
+        // This prevents race conditions when multiple FFs share a clock.
+        if (this.clkInp.value !== activeEdge) {
+            // Clock inactive — sample J/K into masterState
+            if (this._isEnabled()) {
+                const j = this.jInp.value
+                const k = this.kInp.value
+                if (j !== undefined && k !== undefined) {
+                    if (j === 1 && k === 1) {
+                        this.masterState = 1 ^ this.state
+                    } else if (j === 1) {
+                        this.masterState = 1
+                    } else if (k === 1) {
+                        this.masterState = 0
+                    } else {
+                        this.masterState = this.state
+                    }
+                }
+            }
+        } else if (this.prevClkState !== activeEdge) {
+            // Active edge — transfer master to slave (output)
             if (this._isEnabled()) {
                 if (this.hasClear && this.resetType === 'sync' && this._isResetAsserted(this.clrNode)) {
                     this.state = 0
                 } else if (this.hasPreset && this.resetType === 'sync' && this._isResetAsserted(this.preNode)) {
                     this.state = 1
                 } else {
-                    const j = this.jInp.value
-                    const k = this.kInp.value
-                    if (j === 1 && k === 1) {
-                        this.state ^= 1
-                    } else if (j === 1) {
-                        this.state = 1
-                    } else if (k === 1) {
-                        this.state = 0
-                    }
+                    this.state = this.masterState
                 }
             }
         }

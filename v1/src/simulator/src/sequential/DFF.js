@@ -62,6 +62,7 @@ export default class DFF extends CircuitElement {
         }
 
         this.state = 0
+        this.masterState = 0
         this.prevClkState = 0
     }
 
@@ -224,21 +225,31 @@ export default class DFF extends CircuitElement {
         if (this.clkInp.value === undefined) { this.prevClkState = undefined; return }
         const activeEdge = this.clockPolarity === 'pos' ? 1 : 0
 
+        // Async preset/clear override everything
         if (this.hasClear && this.resetType === 'async' && this._isResetAsserted(this.clrNode)) {
-            this.state = 0; this._commitOutputs(); this.prevClkState = this.clkInp.value; return
+            this.masterState = this.state = 0
+            this._commitOutputs(); this.prevClkState = this.clkInp.value; return
         }
         if (this.hasPreset && this.resetType === 'async' && this._isResetAsserted(this.preNode)) {
-            this.state = (1 << this.bitWidth) - 1; this._commitOutputs(); this.prevClkState = this.clkInp.value; return
+            this.masterState = this.state = (1 << this.bitWidth) - 1
+            this._commitOutputs(); this.prevClkState = this.clkInp.value; return
         }
 
-        if (this.clkInp.value === activeEdge && this.prevClkState !== activeEdge) {
+        // Master-slave: sample D into masterState while clock is inactive,
+        // transfer masterState → state on the active edge.
+        if (this.clkInp.value !== activeEdge) {
+            if (this._isEnabled() && this.dInp.value !== undefined) {
+                this.masterState = this.dInp.value
+            }
+        } else if (this.prevClkState !== activeEdge) {
+            // Active edge — transfer master to slave
             if (this._isEnabled()) {
                 if (this.hasClear && this.resetType === 'sync' && this._isResetAsserted(this.clrNode)) {
                     this.state = 0
                 } else if (this.hasPreset && this.resetType === 'sync' && this._isResetAsserted(this.preNode)) {
                     this.state = (1 << this.bitWidth) - 1
-                } else if (this.dInp.value !== undefined) {
-                    this.state = this.dInp.value
+                } else {
+                    this.state = this.masterState
                 }
             }
         }
