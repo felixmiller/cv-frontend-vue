@@ -220,7 +220,7 @@ export function updateSubcircuitSet(param) {
  * @type {string}
  * @category engine
  */
-var gateStyle = localStorage.getItem('gateStyle') || ''
+var gateStyle = localStorage.getItem('gateStyle') ?? 'IEC'
 export const gateStyleRef = ref(gateStyle)
 
 /**
