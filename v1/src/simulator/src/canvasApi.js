@@ -626,8 +626,11 @@ export function drawIecSymbol(ctx, element, symbolText, inverted, outputX) {
     // Rectangle half-height: outermost node position + 10px padding on each side.
     // Uses floor so size only increases at even input counts (new outermost node pair).
     const halfH = (Math.floor((element.inputSize ?? 1) / 2) + 1) * 10
-    // Left edge: where input nodes attach (XOR/XNOR use x=-20, others x=-10)
-    const leftX = element.inp?.length > 0 ? element.inp[0].x : (element.inp1?.x ?? -10)
+    // Left edge: where non-inverted input nodes attach (XOR/XNOR use x=-20, others x=-10)
+    // If first input is inverted, compensate by adding 10 back to get the box edge
+    const firstInp = element.inp?.[0] ?? element.inp1
+    const rawLeftX = firstInp?.leftx ?? -10
+    const leftX = (firstInp?.inverted) ? rawLeftX + 10 : rawLeftX
     // Bubble radius and geometry
     const bubbleR = 5
     // Rectangle right edge: for inverted gates, leave room for the bubble outside

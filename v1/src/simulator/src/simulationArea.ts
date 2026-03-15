@@ -23,6 +23,7 @@ const simulationArea: SimulationArea = {
     copyList: [],
     shiftDown: false,
     controlDown: false,
+    altDown: false,
     timePeriod: 500,
     mouseX: 0,
     mouseY: 0,
