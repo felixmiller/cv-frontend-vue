@@ -1,5 +1,5 @@
 /* eslint-disable import/no-cycle */
-import { drawCircle, drawLine, arc } from './canvasApi'
+import { drawCircle, drawCircle2, drawLine, arc, correctWidth } from './canvasApi'
 import { simulationArea } from './simulationArea'
 import { distance, showError } from './utils'
 import {
@@ -441,6 +441,14 @@ export default class Node {
             simulationArea.contentionPending.removeAllContentionsForNode(this);
         }
 
+        // When an inverted input propagates to its connections, use the original
+        // (un-inverted) wire value so contention checks and wire values stay correct.
+        // The inverted value is only used by the parent gate via this.value.
+        let wireValue = this.value
+        if (this.inverted && wireValue !== undefined) {
+            wireValue = ((~wireValue) >>> 0) & ((1 << this.bitWidth) - 1)
+        }
+
         for (var i = 0; i < this.connections.length; i++) {
             const node = this.connections[i];
 
@@ -448,7 +456,7 @@ export default class Node {
             // TODO: For an output node, a downstream value (value given by elements other than the parent)
             // should be overwritten in contention check and should not cause contention.
             case NODE_OUTPUT:
-                if (node.value != this.value || node.bitWidth != this.bitWidth) {
+                if (node.value != wireValue || node.bitWidth != this.bitWidth) {
                     // Check contentions
                     if (node.value != undefined && node.parent.objectType != 'SubCircuit'
                         && !(node.subcircuitOverride && node.scope != this.scope)) {
@@ -483,11 +491,19 @@ export default class Node {
             // Fallthrough. NODE_INPUT propagates like a bitwidth checked NODE_INTERMEDIATE
             case NODE_INTERMEDIATE:
 
-                if (node.value != this.value || node.bitWidth != this.bitWidth) {
-                    // Propagate
-                    node.bitWidth = this.bitWidth;
-                    node.value = this.value;
-                    simulationArea.simulationQueue.add(node);
+                {
+                    // Use wireValue (un-inverted if source is inverted input).
+                    // Apply inversion if target node is an inverted input.
+                    let propagatedValue = wireValue
+                    if (node.inverted && propagatedValue !== undefined) {
+                        propagatedValue = ((~propagatedValue) >>> 0) & ((1 << this.bitWidth) - 1)
+                    }
+                    if (node.value != propagatedValue || node.bitWidth != this.bitWidth) {
+                        // Propagate
+                        node.bitWidth = this.bitWidth;
+                        node.value = propagatedValue;
+                        simulationArea.simulationQueue.add(node);
+                    }
                 }
             default:
                 break;
@@ -608,6 +624,26 @@ export default class Node {
             drawCircle(ctx, this.absX(), this.absY(), 3, colorNodeSelected)
         }
 
+        // Draw inversion bubble for inverted input nodes
+        if (this.inverted && this.type === NODE_INPUT && this.parent) {
+            const bubbleR = 4
+            // Bubble center: 5 units from the node toward the element body
+            let bx = this.leftx
+            let by = this.lefty
+            if (this.leftx < 0) bx = this.leftx + bubbleR + 1
+            else if (this.leftx > 0) bx = this.leftx - bubbleR - 1
+            else if (this.lefty < 0) by = this.lefty + bubbleR + 1
+            else if (this.lefty > 0) by = this.lefty - bubbleR - 1
+            ctx.beginPath()
+            ctx.lineWidth = correctWidth(3)
+            ctx.strokeStyle = colors['stroke']
+            ctx.fillStyle = colors['fill']
+            drawCircle2(ctx, bx, by, bubbleR,
+                this.parent.x, this.parent.y, this.parent.direction)
+            ctx.fill()
+            ctx.stroke()
+        }
+
         if (
             this.highlighted ||
             simulationArea.lastSelected == this ||
@@ -703,6 +739,27 @@ export default class Node {
             this.clicked = true
         } else {
             this.clicked = false
+        }
+
+        // Alt+click on an input node: toggle inversion bubble instead of starting wire draw
+        if (!this.wasClicked && this.clicked && simulationArea.altDown && this.type === NODE_INPUT) {
+            this.inverted = !this.inverted
+            // Move node outward/inward by 10 units to make room for bubble
+            // Determine direction: node is left of parent center → move further left, etc.
+            if (this.leftx < 0) this.leftx += (this.inverted ? -10 : 10)
+            else if (this.leftx > 0) this.leftx += (this.inverted ? 10 : -10)
+            else if (this.lefty < 0) this.lefty += (this.inverted ? -10 : 10)
+            else if (this.lefty > 0) this.lefty += (this.inverted ? 10 : -10)
+            this.updateRotation()
+            // Re-apply inversion to current value and trigger re-simulation
+            if (this.value !== undefined) {
+                this.value = ((~this.value) >>> 0) & ((1 << this.bitWidth) - 1)
+                simulationArea.simulationQueue.add(this.parent)
+            }
+            this.clicked = false
+            simulationArea.selected = false
+            scheduleUpdate()
+            return
         }
 
         if (!this.wasClicked && this.clicked) {

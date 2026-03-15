@@ -21,6 +21,7 @@ export interface SimulationArea {
     copyList: any[];
     shiftDown: boolean;
     controlDown: boolean;
+    altDown: boolean;
     timePeriod: number;
     mouseX: number;
     mouseY: number;

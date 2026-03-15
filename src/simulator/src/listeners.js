@@ -355,6 +355,9 @@ export default function startListeners() {
         if (e.key == 'Meta' || e.key == 'Control') {
             simulationArea.controlDown = false
         }
+        if (e.key == 'Alt') {
+            simulationArea.altDown = false
+        }
     })
 
     window.addEventListener(
@@ -366,6 +369,9 @@ export default function startListeners() {
             simulationArea.shiftDown = e.shiftKey
             if (e.key == 'Meta' || e.key == 'Control') {
                 simulationArea.controlDown = true
+            }
+            if (e.key == 'Alt') {
+                simulationArea.altDown = true
             }
 
             if (

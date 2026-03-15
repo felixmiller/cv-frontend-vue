@@ -64,6 +64,10 @@
         property-select-id="orientationValue"
     />
 
+    <p v-if="obj.inp && obj.inp.length > 0" class="property-hint">
+        <small>Alt+click on input pins to toggle inversion bubbles</small>
+    </p>
+
     <div v-for="(value, name) in obj.mutableProperties" :key="name" :class="{ 'prop-inline': value.sameRow }">
         <template v-if="visibilityMap[name] !== false">
             <InputGroups
@@ -207,5 +211,8 @@ onUnmounted(() => { if (_intervalId !== undefined) clearInterval(_intervalId) })
 .prop-inline {
     display: inline-block;
     margin-right: 12px;
+}
+.property-hint {
+    margin: 4px 0;
 }
 </style>
