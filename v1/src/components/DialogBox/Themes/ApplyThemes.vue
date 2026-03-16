@@ -65,6 +65,11 @@
                                     src="../../../assets/themes/ColorBlind.svg"
                                     style="display: block"
                                 />
+                                <img
+                                    v-if="theme == 'Print (B&W)'"
+                                    src="../../../assets/themes/PrintBW.svg"
+                                    style="display: block"
+                                />
                             </span>
                             <span id="themeNameBox" class="themeNameBox">
                                 <input

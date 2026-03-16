@@ -619,9 +619,11 @@ export default class Node {
         if (this.value == undefined) colorNode = colorNodeLose
         if (this.type == NODE_INTERMEDIATE) this.checkHover()
         if (this.type == NODE_INTERMEDIATE) {
-            drawCircle(ctx, this.absX(), this.absY(), 3, colorNode)
+            if (colors['node_intermediate']?.trim() !== 'hidden')
+                drawCircle(ctx, this.absX(), this.absY(), 3, colorNode)
         } else {
-            drawCircle(ctx, this.absX(), this.absY(), 3, colorNodeSelected)
+            if (colors['node_endpoint']?.trim() !== 'hidden')
+                drawCircle(ctx, this.absX(), this.absY(), 3, colorNodeSelected)
         }
 
         // Draw inversion bubble for inverted input nodes

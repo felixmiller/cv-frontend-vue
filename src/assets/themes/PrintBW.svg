@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="202.9" height="106" viewBox="0 0 202.9 106">
+<defs>
+  <clipPath id="clip">
+    <use xlink:href="#fill"></use>
+  </clipPath>
+  <clipPath id="clip-2">
+    <use xlink:href="#fill-2"></use>
+  </clipPath>
+  <clipPath id="clip-3">
+    <use xlink:href="#fill-3"></use>
+  </clipPath>
+</defs>
+<g id="PrintBW" transform="translate(-542 -149.868)">
+  <rect id="Rectangle_1592" data-name="Rectangle 1592" width="202" height="106" transform="translate(542.45 149.868)" fill="white"></rect>
+  <rect id="Rectangle_1589" data-name="Rectangle 1589" width="47" height="73" rx="4" transform="translate(552.45 172.868)" fill="#333" stroke="#000"></rect>
+  <path id="Rectangle_1599" data-name="Rectangle 1599" d="M0,0H202a0,0,0,0,1,0,0V6a3,3,0,0,1-3,3H3A3,3,0,0,1,0,6V0A0,0,0,0,1,0,0Z" transform="translate(542.45 153.868)" fill="#aaa" stroke="#000"></path>
+  <rect id="Rectangle_1593" data-name="Rectangle 1593" width="47" height="64" rx="4" transform="translate(689.45 172.868)" fill="#333" stroke="#000"></rect>
+  <rect id="Rectangle_1598" data-name="Rectangle 1598" width="202" height="7" transform="translate(542.45 149.868)" fill="#333"></rect>
+  <g id="Rectangle_1594" data-name="Rectangle 1594" transform="translate(559.45 183.868)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="24" height="3" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="23" height="2" fill="none"></rect>
+  </g>
+  <g id="Rectangle_1601" data-name="Rectangle 1601" transform="translate(694.45 182.868)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="36" height="3" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="35" height="2" fill="none"></rect>
+  </g>
+  <g id="Rectangle_1602" data-name="Rectangle 1602" transform="translate(694.45 199.868)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="36" height="3" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="35" height="2" fill="none"></rect>
+  </g>
+  <g id="Rectangle_1604" data-name="Rectangle 1604" transform="translate(694.45 216.868)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="36" height="3" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="35" height="2" fill="none"></rect>
+  </g>
+  <g id="Rectangle_1600" data-name="Rectangle 1600" transform="translate(694.89 178.578)" fill="white" stroke="#999" stroke-width="1">
+    <rect id="fill" width="12.86" height="0.714" stroke="none"></rect>
+    <path d="M0,0.21443802118301392h12.859884262084961M12.359884262084961,0v0.7144380211830139M12.859884262084961,0.5h-12.859884262084961M0.5,0.7144380211830139v-0.7144380211830139" fill="none" clip-path="url(#clip)"></path>
+  </g>
+  <g id="Rectangle_1606" data-name="Rectangle 1606" transform="translate(630.59 152.858)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="27.149" height="2.143" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="26.149" height="1.143" fill="none"></rect>
+  </g>
+  <g id="Rectangle_1603" data-name="Rectangle 1603" transform="translate(694.89 195.724)" fill="white" stroke="#999" stroke-width="1">
+    <rect id="fill-2" width="12.86" height="0.714" stroke="none"></rect>
+    <path d="M0,0.21443802118301392h12.859884262084961M12.359884262084961,0v0.7144380211830139M12.859884262084961,0.5h-12.859884262084961M0.5,0.7144380211830139v-0.7144380211830139" fill="none" clip-path="url(#clip-2)"></path>
+  </g>
+  <g id="Rectangle_1605" data-name="Rectangle 1605" transform="translate(694.89 212.871)" fill="white" stroke="#999" stroke-width="1">
+    <rect id="fill-3" width="12.86" height="0.714" stroke="none"></rect>
+    <path d="M0,0.21443802118301392h12.859884262084961M12.359884262084961,0v0.7144380211830139M12.859884262084961,0.5h-12.859884262084961M0.5,0.7144380211830139v-0.7144380211830139" fill="none" clip-path="url(#clip-3)"></path>
+  </g>
+  <g id="Rectangle_1595" data-name="Rectangle 1595" transform="translate(559.45 198.868)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="24" height="3" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="23" height="2" fill="none"></rect>
+  </g>
+  <g id="Rectangle_1596" data-name="Rectangle 1596" transform="translate(559.45 212.868)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="24" height="3" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="23" height="2" fill="none"></rect>
+  </g>
+  <g id="Rectangle_1597" data-name="Rectangle 1597" transform="translate(559.45 226.868)" fill="white" stroke="#999" stroke-width="1">
+    <rect width="24" height="3" stroke="none"></rect>
+    <rect x="0.5" y="0.5" width="23" height="2" fill="none"></rect>
+  </g>
+  <g id="chevron-down" transform="translate(587.949 185.477)">
+    <path id="chevron-down-2" data-name="chevron-down" d="M6,9l1.881,1.881L9.762,9" transform="translate(-6 -9)" fill="none" stroke="#999" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+  </g>
+  <g id="chevron-down-3" data-name="chevron-down" transform="translate(587.949 199.766)">
+    <path id="chevron-down-4" data-name="chevron-down" d="M6,9l1.881,1.881L9.762,9" transform="translate(-6 -9)" fill="none" stroke="#999" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+  </g>
+  <g id="chevron-down-5" data-name="chevron-down" transform="translate(587.949 214.055)">
+    <path id="chevron-down-6" data-name="chevron-down" d="M6,9l1.881,1.881L9.762,9" transform="translate(-6 -9)" fill="none" stroke="#999" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+  </g>
+  <g id="chevron-down-7" data-name="chevron-down" transform="translate(587.949 228.343)">
+    <path id="chevron-down-8" data-name="chevron-down" d="M6,9l1.881,1.881L9.762,9" transform="translate(-6 -9)" fill="none" stroke="#999" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"></path>
+  </g>
+  <!-- Canvas area: white bg, no grid, black elements -->
+  <rect transform="translate(610 172)" width="68" height="68" fill="white" stroke="#ccc" stroke-width="0.5" rx="2"></rect>
+  <!-- AND gate box -->
+  <rect transform="translate(622 192)" width="20" height="16" fill="white" stroke="black" stroke-width="1"></rect>
+  <!-- Wires (all black) -->
+  <line x1="616" y1="196" x2="622" y2="196" stroke="black" stroke-width="0.8"></line>
+  <line x1="616" y1="204" x2="622" y2="204" stroke="black" stroke-width="0.8"></line>
+  <line x1="642" y1="200" x2="660" y2="200" stroke="black" stroke-width="0.8"></line>
+  <!-- Nodes -->
+  <circle cx="616" cy="196" r="1.2" fill="black"></circle>
+  <circle cx="616" cy="204" r="1.2" fill="black"></circle>
+  <circle cx="660" cy="200" r="1.2" fill="black"></circle>
+  <!-- Text label -->
+  <text x="628" y="202" font-size="5" fill="black" text-anchor="middle" font-family="sans-serif">&amp;</text>
+</g>
+</svg>

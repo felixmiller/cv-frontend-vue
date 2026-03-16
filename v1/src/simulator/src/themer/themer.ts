@@ -38,6 +38,8 @@ const getCanvasColors = (): Record<string, string> => {
     setColor(colors, 'out_rect', '--output-rect');
     setColor(colors, 'canvas_stroke', '--canvas-stroke');
     setColor(colors, 'canvas_fill', '--canvas-fill');
+    setColor(colors, 'node_intermediate', '--node-intermediate');
+    setColor(colors, 'node_endpoint', '--node-endpoint');
     return colors;
 };
 
