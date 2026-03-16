@@ -152,7 +152,7 @@
                         color: grey;
                         z-index: 2;
                     "
-                    href="https://circuitverse.org/"
+                    href="/"
                     target="_blank"
                 >
                     Made With CircuitVerse

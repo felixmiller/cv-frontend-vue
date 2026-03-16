@@ -243,7 +243,7 @@ async function postUserIssue(message: string): Promise<void> {
     } catch (err) {
         const resultEl = document.getElementById('result')
         if (resultEl) {
-            resultEl.innerHTML = `<i class='fa fa-minus-circle' style='color:red'></i> There seems to be a network issue. Please reach out to us at support@circuitverse.org`
+            resultEl.innerHTML = `<i class='fa fa-minus-circle' style='color:red'></i> There seems to be a network issue. Please try again later.`
         }
         console.error(err)
     }
