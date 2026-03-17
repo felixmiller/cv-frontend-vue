@@ -106,6 +106,9 @@ export function loadNode(data, scope) {
         data.bitWidth,
         data.label
     )
+    if (data.inverted) {
+        n.inverted = true
+    }
 }
 
 /**
@@ -269,6 +272,9 @@ export default class Node {
             bitWidth: this.bitWidth,
             label: this.label,
             connections: [],
+        }
+        if (this.inverted) {
+            data.inverted = true
         }
         for (var i = 0; i < this.connections.length; i++) {
             data.connections.push(findNode(this.connections[i]))

@@ -253,7 +253,12 @@ export default class Wire {
         if (simulationArea.lastSelected === this) {
             return colors['color_wire_sel'];
         }
-        if (this.node1.value === undefined || this.node2.value === undefined) {
+        // Use the pre-inversion wire value for display: if a node is an
+        // inverted input, its .value holds the inverted result for the gate,
+        // but the wire itself carries the original signal.
+        const val1 = this.wireValue(this.node1);
+        const val2 = this.wireValue(this.node2);
+        if (val1 === undefined || val2 === undefined) {
             return colors['color_wire_lose'];
         }
         if (this.node1.bitWidth === 1) {
@@ -261,8 +266,16 @@ export default class Wire {
                 colors['color_wire_lose'],
                 colors['color_wire_con'],
                 colors['color_wire_pow'],
-            ][this.node1.value - WireValue.LOOSE];
+            ][val1 - WireValue.LOOSE];
         }
         return colors['color_wire'];
+    }
+
+    private wireValue(node: any): number | undefined {
+        const v = node.value;
+        if (node.inverted && v !== undefined) {
+            return ((~v) >>> 0) & ((1 << node.bitWidth) - 1);
+        }
+        return v;
     }
 }
