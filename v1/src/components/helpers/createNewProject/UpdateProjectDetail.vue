@@ -136,9 +136,12 @@ function toggleFullscreen() {
 function updateProjectButton(selectedOption: string) {
     promptStore.UpdateProjectDetail.activate = false
     if (selectedOption == 'cancel') {
-        window.location.href = `/simulatorvue/edit/${promptStore.getProjectId}`
+        window.logixProjectId = promptStore.getProjectId
+        history.replaceState({}, '', `/simulatorvue/edit/${promptStore.getProjectId}`)
     }
     if (selectedOption == 'openEditPage') {
+        window.logixProjectId = promptStore.getProjectId
+        history.replaceState({}, '', `/simulatorvue/edit/${promptStore.getProjectId}`)
         window.location.href = `/users/${useAuthStore().getUserId}/projects/${
             promptStore.getProjectId
         }/edit`
@@ -184,11 +187,14 @@ async function successPrompt() {
     )
 
     if (choice == 'go to project') {
+        window.logixProjectId = promptStore.getProjectId
+        history.replaceState({}, '', `/simulatorvue/edit/${promptStore.getProjectId}`)
         window.location.href = `/users/${useAuthStore().getUserId}/projects/${
             promptStore.getProjectId
         }`
     } else {
-        window.location.href = `/simulatorvue/edit/${promptStore.getProjectId}`
+        window.logixProjectId = promptStore.getProjectId
+        history.replaceState({}, '', `/simulatorvue/edit/${promptStore.getProjectId}`)
     }
 }
 
@@ -197,6 +203,8 @@ async function failurePrompt() {
         'Project details could not be updated. You will be redirected to Project Edit page.'
     )
     if (response === true) {
+        window.logixProjectId = promptStore.getProjectId
+        history.replaceState({}, '', `/simulatorvue/edit/${promptStore.getProjectId}`)
         window.location.href = `/users/${useAuthStore().getUserId}/projects/${
             promptStore.getProjectId
         }/edit`
