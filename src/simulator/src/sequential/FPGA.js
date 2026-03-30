@@ -107,6 +107,13 @@ export default class FPGA extends CircuitElement {
         this.activeSB = null          // { vi, hi } of the magnified SB, or null
         this.activePort = null        // selected output port name in the magnified SB, or null
 
+        // Simulation state per CLB (not saved, rebuilt on resolve)
+        this.ffState = {}             // { "r,c": latched Q value }
+        this.ffMasterState = {}       // { "r,c": master latch value }
+        this.prevClk = undefined      // previous clock value for edge detection
+        this.simErrors = []           // error messages from last resolve
+
+        this._initSimState()
         this._buildLayout()
         this._buildNodes()
     }
@@ -127,6 +134,16 @@ export default class FPGA extends CircuitElement {
             for (let c = 0; c < this.cols; c++)
                 mux[`${r},${c}`] = 0  // combinatorial by default
         return mux
+    }
+
+    _initSimState() {
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const key = `${r},${c}`
+                if (this.ffState[key] === undefined) this.ffState[key] = 0
+                if (this.ffMasterState[key] === undefined) this.ffMasterState[key] = 0
+            }
+        }
     }
 
     /**
@@ -353,10 +370,229 @@ export default class FPGA extends CircuitElement {
         }
     }
 
-    // -- Resolve (placeholder) ------------------------------------------------
+    // -- Simulation -----------------------------------------------------------
 
     resolve() {
-        // Step 3: LUT evaluation, MUX routing, D-FF
+        this.simErrors = []
+
+        // Wire value map: "wireType:channel:wireIdx:segment" → value
+        // Vertical wire segments: "v:vi:w:hi" (between h-channel hi and hi+1)
+        // Horizontal wire segments: "h:hi:w:vi" (between v-channel vi and vi+1)
+        const wires = {}
+        const wireDrivers = {}  // tracks who drives each wire (for collision detection)
+
+        const setWire = (id, val, source) => {
+            if (wireDrivers[id] && wireDrivers[id] !== source) {
+                this.simErrors.push(`Collision on wire ${id}: driven by ${wireDrivers[id]} and ${source}`)
+                wires[id] = undefined
+                return
+            }
+            wireDrivers[id] = source
+            wires[id] = val
+        }
+
+        const getWire = (id) => wires[id] !== undefined ? wires[id] : undefined
+
+        // -- 1. Read external inputs into left-edge vertical wire segments --
+        // Left I/O pins feed into the left SB (vi=0) horizontal channels
+        // Actually, I/O pins connect to the SB's L0 port. But the routing
+        // goes through the SB muxes. We model it differently:
+        // Each I/O input drives a special wire "io:left:hi"
+        // Each I/O output reads from a special wire "io:right:hi"
+        for (let hi = 0; hi <= this.rows; hi++) {
+            const val = this.ioNodesLeft[hi].value
+            setWire(`io:left:${hi}`, val !== undefined ? val : undefined, `IN${hi}`)
+        }
+
+        // CLK and RST global signals
+        const clkVal = this.clkNode.value
+        const rstVal = this.rstNode.value
+
+        // -- 2. Evaluate CLBs (combinatorial outputs first) --
+        // CLB outputs drive vertical wire segments.
+        // CLB inputs come from vertical wire segments.
+        // We need to propagate through SBs to connect them.
+        //
+        // Strategy: iterative propagation.
+        // 1. Seed: CLB registered outputs (from previous cycle), I/O inputs
+        // 2. Propagate through all SBs
+        // 3. Evaluate CLBs (compute combinatorial outputs)
+        // 4. Propagate CLB outputs through SBs
+        // 5. Repeat until stable (max iterations to catch loops)
+
+        const MAX_ITER = 20
+        let changed = true
+        let iter = 0
+
+        // Seed: CLB registered outputs from previous state (for feedback paths)
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const key = `${r},${c}`
+                if (this.muxSel[key] === 1) {
+                    // Registered mode: use previous FF state as initial output
+                    const vi_out = c + 1
+                    setWire(`v:${vi_out}:0:${r}`, this.ffState[key], `CLB(${r},${c})`)
+                }
+            }
+        }
+
+        while (changed && iter < MAX_ITER) {
+            changed = false
+            iter++
+
+            // -- Propagate through switch boxes --
+            for (let vi = 0; vi <= this.cols; vi++) {
+                for (let hi = 0; hi <= this.rows; hi++) {
+                    const sbKey = `${vi},${hi}`
+                    const muxes = this.sbMuxes[sbKey]
+                    if (!muxes) continue
+                    const { inputs, outputs } = this._sbPorts(vi, hi)
+
+                    for (const outPort of outputs) {
+                        const selIdx = muxes[outPort.name]
+                        if (!selIdx || selIdx === 0) continue  // n.c.
+                        const inPort = inputs[selIdx - 1]
+                        if (!inPort) continue
+
+                        // Resolve input wire value
+                        const inWire = this._portToWire(vi, hi, inPort, 'in')
+                        const outWire = this._portToWire(vi, hi, outPort, 'out')
+                        if (!inWire || !outWire) continue
+
+                        const inVal = getWire(inWire)
+                        if (inVal === undefined) continue
+
+                        const oldVal = getWire(outWire)
+                        if (oldVal !== inVal) {
+                            setWire(outWire, inVal, `SB(${vi},${hi}):${outPort.name}`)
+                            changed = true
+                        }
+                    }
+                }
+            }
+
+            // -- Evaluate CLBs --
+            for (let r = 0; r < this.rows; r++) {
+                for (let c = 0; c < this.cols; c++) {
+                    const key = `${r},${c}`
+                    const vi_in = c       // input channel
+                    const vi_out = c + 1  // output channel
+                    const nw_in = this._vWireCount(vi_in)
+
+                    // Read LUT inputs from vertical wires
+                    // MSB (in0) = leftmost wire, LSB (in2) = rightmost wire
+                    const firstWire = nw_in - N_INPUTS
+                    let addr = 0
+                    let allDefined = true
+                    for (let i = 0; i < N_INPUTS; i++) {
+                        const wireIdx = firstWire + i
+                        // Wire segment between h-channel r and r+1 (the row this CLB sits in)
+                        const wId = `v:${vi_in}:${wireIdx}:${r}`
+                        const v = getWire(wId)
+                        if (v === undefined) {
+                            allDefined = false
+                        } else {
+                            // in0 is MSB (weight 4), in2 is LSB (weight 1)
+                            addr |= (v & 1) << (N_INPUTS - 1 - i)
+                        }
+                    }
+
+                    // LUT output
+                    const lutBits = this.luts[key]
+                    const lutOut = allDefined ? (lutBits[addr] || 0) : undefined
+
+                    // PRE/CLR mux: 0=const 0, 1=RST signal
+                    const preActive = this.preSel[key] === 1 ? (rstVal || 0) : 0
+                    const clrActive = this.clrSel[key] === 1 ? (rstVal || 0) : 0
+
+                    // D-FF with master-slave behavior
+                    // Async preset/clear override
+                    if (clrActive) {
+                        this.ffMasterState[key] = this.ffState[key] = 0
+                    } else if (preActive) {
+                        this.ffMasterState[key] = this.ffState[key] = 1
+                    } else if (clkVal !== undefined) {
+                        // Positive-edge triggered master-slave
+                        if (clkVal === 0) {
+                            // Clock inactive: sample D into master
+                            if (lutOut !== undefined) {
+                                this.ffMasterState[key] = lutOut
+                            }
+                        } else if (this.prevClk === 0) {
+                            // Rising edge: transfer master to slave
+                            this.ffState[key] = this.ffMasterState[key]
+                        }
+                    }
+
+                    // Output MUX: 0=combinatorial (LUT out), 1=registered (FF Q)
+                    const clbOut = this.muxSel[key] === 1 ? this.ffState[key] : lutOut
+
+                    // Drive CLB output onto vertical wire
+                    const outWire = `v:${vi_out}:0:${r}`
+                    const oldOut = getWire(outWire)
+                    if (clbOut !== undefined && oldOut !== clbOut) {
+                        setWire(outWire, clbOut, `CLB(${r},${c})`)
+                        changed = true
+                    }
+                }
+            }
+        }
+
+        // Update clock edge detection
+        this.prevClk = clkVal
+
+        if (iter >= MAX_ITER) {
+            this.simErrors.push('Routing did not converge (possible circular dependency)')
+        }
+
+        // -- 3. Write output nodes --
+        for (let hi = 0; hi <= this.rows; hi++) {
+            // Right I/O reads from the right-edge SB's R0 output
+            // That output is driven by SB mux routing — check the wire
+            const outWire = `io:right:${hi}`
+            const val = getWire(outWire)
+            if (this.ioNodesRight[hi].value !== val) {
+                this.ioNodesRight[hi].value = val !== undefined ? val : undefined
+                simulationArea.simulationQueue.add(this.ioNodesRight[hi])
+            }
+        }
+    }
+
+    /**
+     * Map a switch box port to its wire segment ID.
+     * direction: 'in' (wire entering the SB) or 'out' (wire leaving the SB)
+     */
+    _portToWire(vi, hi, port, direction) {
+        const isLeft = vi === 0
+        const isRight = vi === this.cols
+
+        if (port.side === 'T') {
+            // Top port: vertical wire in channel vi, segment above (between hi-1 and hi)
+            if (hi === 0) return null
+            return `v:${vi}:${port.wireIdx}:${hi - 1}`
+        }
+        if (port.side === 'B') {
+            // Bottom port: vertical wire in channel vi, segment below (between hi and hi+1)
+            if (hi >= this.rows) return null
+            return `v:${vi}:${port.wireIdx}:${hi}`
+        }
+        if (port.side === 'L') {
+            if (isLeft) {
+                // Left edge: connects to I/O input
+                return `io:left:${hi}`
+            }
+            // Interior: horizontal wire segment to the left (between vi-1 and vi)
+            return `h:${hi}:${port.wireIdx}:${vi - 1}`
+        }
+        if (port.side === 'R') {
+            if (isRight) {
+                // Right edge: connects to I/O output
+                return `io:right:${hi}`
+            }
+            // Interior: horizontal wire segment to the right (between vi and vi+1)
+            return `h:${hi}:${port.wireIdx}:${vi}`
+        }
+        return null
     }
 
     // -- Click handling -------------------------------------------------------
@@ -1390,6 +1626,7 @@ export default class FPGA extends CircuitElement {
 
 FPGA.prototype.tooltipText = 'FPGA: Island-style FPGA with configurable CLBs and routing'
 FPGA.prototype.objectType = 'FPGA'
+FPGA.prototype.alwaysResolve = true
 FPGA.prototype.constructorParametersDefault = [2, 2, null, null, null, null, null]
 
 FPGA.prototype.mutableProperties = {
