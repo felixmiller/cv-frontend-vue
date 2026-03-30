@@ -64,6 +64,7 @@ import RSLatch from './sequential/RSLatch'
 import PAL from './sequential/PAL'
 import PLA from './sequential/PLA'
 import PLE from './sequential/PLE'
+import FPGA from './sequential/FPGA'
 import TB_Input from './testbench/testbenchInput'
 import TB_Output from './testbench/testbenchOutput'
 import verilogMultiplier from './modules/verilogMultiplier'
@@ -148,6 +149,7 @@ export default function setupModules() {
         PAL,
         PLA,
         PLE,
+        FPGA,
     }
     Object.assign(modules, moduleSet)
 }

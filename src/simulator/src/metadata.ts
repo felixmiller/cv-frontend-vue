@@ -69,7 +69,8 @@ export const circuitElementList = [
     "RSLatch",
     "PAL",
     "PLA",
-    "PLE"
+    "PLE",
+    "FPGA"
 ]
 const annotationList = ["Text", "Rectangle", "Arrow", "ImageAnnotation"]
 export const moduleList = [...circuitElementList, ...annotationList]
@@ -189,7 +190,8 @@ export const elementHierarchy: Record<string, NameLabel[]> = {
     "Programmable Logic (HM)": [
         { name: "PAL", label: "PAL" },
         { name: "PLA", label: "PLA" },
-        { name: "PLE", label: "PLE/ROM" }
+        { name: "PLE", label: "PLE/ROM" },
+        { name: "FPGA", label: "FPGA" }
     ],
     "Annotation": [
         { name: "Rectangle", label: "Rectangle" },
