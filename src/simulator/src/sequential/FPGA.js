@@ -20,7 +20,7 @@ import { colors } from '../themer/themer'
 // Layout constants (in circuit coordinate units, snapped to 10px grid)
 const N_INPUTS = 3                 // LUT inputs (fixed for now)
 const N_LUT_ENTRIES = 1 << N_INPUTS  // 8
-const CLB_W = 130                  // CLB box width
+const CLB_W = 140                  // CLB box width
 const CLB_H = 110                  // CLB box height
 const SB_SIZE = 40                 // switch box size
 const H_WIRE_COUNT = 3             // horizontal wires per channel
@@ -41,15 +41,15 @@ const FF_Y = 42                    // D-FF box top edge within CLB
 const FF_W = 22                    // D-FF box width
 const FF_H = 45                    // D-FF box height
 const FF_DQ_REL = 0.36             // D input and Q output relative Y (same level, aligned with MUX input 1)
-const FF_CLK_REL = 0.55            // Clock input relative Y position
+const FF_CLK_REL = 1 - FF_DQ_REL   // Clock input relative Y (symmetric with D from bottom)
 
-const MUX_X = 112                  // MUX box left edge within CLB
+const MUX_X = 122                  // MUX box left edge within CLB
 const MUX_Y = 12                   // MUX box top edge within CLB
 const MUX_W = 12                   // MUX box width
 const MUX_H = 48                   // MUX box height (tapered shape)
 
-const SRAM_X = 112                 // SRAM cell left edge within CLB (aligned with MUX center)
-const SRAM_Y = 80                  // SRAM cell top edge within CLB
+const SRAM_X = 122                 // SRAM cell left edge within CLB (aligned with MUX center)
+const SRAM_Y = 70                  // SRAM cell top edge within CLB
 const SRAM_SIZE = 12               // SRAM cell size
 
 // PRE/CLR mux layout (small muxes between LUT and FF)
@@ -59,15 +59,15 @@ const RC_MUX_W = 8                 // PRE/CLR mux width
 const RC_MUX_H = 14                // PRE/CLR mux height
 const RC_SRAM_SIZE = 8             // PRE/CLR SRAM cell size
 // PRE: SRAM below, mux above. Anchor = SRAM top Y
-const PRE_SRAM_Y = 34              // PRE SRAM cell top within CLB
+const PRE_SRAM_Y = 44              // PRE SRAM cell top within CLB
 const PRE_MUX_Y = PRE_SRAM_Y - 2 - RC_MUX_H  // mux sits just above SRAM
-// CLR: SRAM above, mux below. Anchor = SRAM top Y
-const CLR_SRAM_Y = 80              // CLR SRAM cell top within CLB
-const CLR_MUX_Y = CLR_SRAM_Y + RC_SRAM_SIZE + 2  // mux sits just below SRAM
-
 // CLK/RST input positions within CLB (left edge, below LUT)
 const CLB_CLK_Y = 96               // CLK input Y within CLB
 const CLB_RST_Y = 104              // RST input Y within CLB
+
+// CLR: SRAM above, mux below. Anchor = mux input 1 aligned with CLB_RST_Y
+const CLR_MUX_Y = CLB_RST_Y - RC_MUX_H * 0.75  // input 1 aligns with RST line
+const CLR_SRAM_Y = CLR_MUX_Y - 2 - RC_SRAM_SIZE  // SRAM sits just above mux
 
 // Global signal inputs
 const GLOBAL_STUB = 20             // stub length for CLK/RST labels
@@ -141,9 +141,9 @@ export default class FPGA extends CircuitElement {
         for (let c = 0; c <= cols; c++) {
             this.vChanX.push(snap10(x))
             if (c < cols) {
-                const clbLeft = x + SB_SIZE / 2 + CH_GAP - 20
+                const clbLeft = x + SB_SIZE / 2 + CH_GAP - 10
                 this.clbX.push(snap10(clbLeft))
-                x = clbLeft + CLB_W + CH_GAP + 20
+                x = clbLeft + CLB_W + CH_GAP + 10
             }
         }
 
@@ -156,7 +156,7 @@ export default class FPGA extends CircuitElement {
             if (r < rows) {
                 const clbTop = yPos + SB_SIZE / 2 + CH_GAP - 20
                 this.clbY.push(snap10(clbTop))
-                yPos = clbTop + CLB_H + CH_GAP + 20
+                yPos = clbTop + CLB_H + CH_GAP
             }
         }
 
@@ -288,7 +288,7 @@ export default class FPGA extends CircuitElement {
                     { type: 'pre', muxX: PRE_MUX_X, sramY: PRE_SRAM_Y },
                     { type: 'clr', muxX: CLR_MUX_X, sramY: CLR_SRAM_Y },
                 ]) {
-                    const rsx = cx + cfg.muxX - 2
+                    const rsx = cx + cfg.muxX + (RC_MUX_W - RC_SRAM_SIZE) / 2
                     const rsy = cy + cfg.sramY
                     if (mx >= rsx && mx <= rsx + RC_SRAM_SIZE &&
                         my >= rsy && my <= rsy + RC_SRAM_SIZE) {
@@ -319,6 +319,7 @@ export default class FPGA extends CircuitElement {
         this._drawHWires(ctx, ox, oy)
         this._drawIOStubs(ctx, ox, oy)
         this._drawGlobalInputs(ctx, ox, oy)
+        this._drawCLBConnections(ctx, ox, oy)
     }
 
     /** Outer FPGA border. */
@@ -553,13 +554,14 @@ export default class FPGA extends CircuitElement {
             sy + (SRAM_SIZE / 2) * s
         )
 
-        // Vertical line from SRAM to MUX bottom
+        // Vertical line from SRAM to MUX bottom (account for taper at center)
         const midX = px + (SRAM_X + SRAM_SIZE / 2) * s
+        const muxBotAtCenter = my + MUX_H * s - taper / 2
         ctx.strokeStyle = colors['stroke']
         ctx.lineWidth = correctWidth(0.5)
         ctx.beginPath()
         ctx.moveTo(midX, sy)
-        ctx.lineTo(midX, my + MUX_H * s)
+        ctx.lineTo(midX, muxBotAtCenter)
         ctx.stroke()
     }
 
@@ -607,8 +609,9 @@ export default class FPGA extends CircuitElement {
         const mux1Y = py + (MUX_Y + MUX_H * 0.75) * s
         ctx.beginPath()
         ctx.moveTo(ffQX, ffQY)
-        ctx.lineTo(ffQX + 4 * s, ffQY)
-        ctx.lineTo(ffQX + 4 * s, mux1Y)
+        const ffMuxMidX = px + ((FF_X + FF_W + MUX_X) / 2) * s
+        ctx.lineTo(ffMuxMidX, ffQY)
+        ctx.lineTo(ffMuxMidX, mux1Y)
         ctx.lineTo(muxLeftX, mux1Y)
         ctx.stroke()
 
@@ -626,15 +629,17 @@ export default class FPGA extends CircuitElement {
         const clbLeftX = px
         const ffClkX = px + FF_X * s
         const ffClkY = py + (FF_Y + FF_H * FF_CLK_REL) * s
+        // Vertical segment aligned with LUT output fork
+        const clkVertX = forkX
         ctx.beginPath()
         ctx.moveTo(clbLeftX, clkY)
         ctx.lineTo(clbLeftX - 5 * s, clkY)  // small stub outside CLB
         ctx.stroke()
-        // Wire from input to FF clock
+        // Wire from input to FF clock via vertical aligned with fork
         ctx.beginPath()
         ctx.moveTo(clbLeftX, clkY)
-        ctx.lineTo(ffClkX - 4 * s, clkY)
-        ctx.lineTo(ffClkX - 4 * s, ffClkY)
+        ctx.lineTo(clkVertX, clkY)
+        ctx.lineTo(clkVertX, ffClkY)
         ctx.lineTo(ffClkX, ffClkY)
         ctx.stroke()
         // Label
@@ -644,13 +649,30 @@ export default class FPGA extends CircuitElement {
         ctx.textBaseline = 'middle'
         ctx.fillText('CLK', clbLeftX - 6 * s, clkY)
 
-        // RST input: from CLB left edge, connects to PRE/CLR mux "1" inputs
+        // RST input: from CLB left edge, vertical line connecting to PRE/CLR mux "1" inputs
         const rstY = py + CLB_RST_Y * s
+        const rstVertX = forkX + 10 * s  // vertical RST bus, 1 grid right of CLK/fork
+        const preMux1Y = py + (PRE_MUX_Y + RC_MUX_H * 0.75) * s
         ctx.strokeStyle = colors['stroke']
         ctx.beginPath()
         ctx.moveTo(clbLeftX, rstY)
-        ctx.lineTo(clbLeftX - 5 * s, rstY)
+        ctx.lineTo(clbLeftX - 5 * s, rstY)  // small stub outside CLB
         ctx.stroke()
+        // Horizontal from input to vertical bus
+        ctx.beginPath()
+        ctx.moveTo(clbLeftX, rstY)
+        ctx.lineTo(rstVertX, rstY)
+        ctx.stroke()
+        // Vertical bus up to PRE mux input
+        ctx.beginPath()
+        ctx.moveTo(rstVertX, rstY)
+        ctx.lineTo(rstVertX, preMux1Y)
+        ctx.stroke()
+        // Connection dot at junction
+        ctx.fillStyle = colors['stroke']
+        ctx.beginPath()
+        ctx.arc(rstVertX, rstY, 2 * s, 0, 2 * Math.PI)
+        ctx.fill()
         // Label
         ctx.fillStyle = colors['text']
         ctx.textAlign = 'right'
@@ -690,8 +712,8 @@ export default class FPGA extends CircuitElement {
             ctx.fillText('0', mx + 1 * s, my + RC_MUX_H * 0.25 * s)
             ctx.fillText('1', mx + 1 * s, my + RC_MUX_H * 0.75 * s)
 
-            // SRAM cell at explicit position
-            const sx = mx - 2 * s
+            // SRAM cell centered horizontally on mux
+            const sx = mx + (RC_MUX_W - RC_SRAM_SIZE) / 2 * s
             const sy = py + cfg.sramY * s
             const isHover = hover && hover.type === cfg.type && hover.key === key
             ctx.fillStyle = isHover ? colors['hover_select'] : colors['fill']
@@ -711,17 +733,18 @@ export default class FPGA extends CircuitElement {
                 sy + (RC_SRAM_SIZE / 2) * s
             )
 
-            // Vertical line from SRAM to MUX
+            // Vertical line from SRAM to MUX (account for taper at center)
             const sramMidX = sx + (RC_SRAM_SIZE / 2) * s
+            const halfTaper = taper / 2  // taper at midpoint of trapezoid edge
             ctx.strokeStyle = colors['stroke']
             ctx.lineWidth = correctWidth(0.5)
             ctx.beginPath()
             if (cfg.sramBelow) {
                 ctx.moveTo(sramMidX, sy)
-                ctx.lineTo(sramMidX, my + RC_MUX_H * s)
+                ctx.lineTo(sramMidX, my + RC_MUX_H * s - halfTaper)
             } else {
                 ctx.moveTo(sramMidX, sy + RC_SRAM_SIZE * s)
-                ctx.lineTo(sramMidX, my)
+                ctx.lineTo(sramMidX, my + halfTaper)
             }
             ctx.stroke()
 
@@ -743,27 +766,23 @@ export default class FPGA extends CircuitElement {
             const in0Y = my + RC_MUX_H * 0.25 * s
             ctx.beginPath()
             ctx.moveTo(mx, in0Y)
-            ctx.lineTo(mx - 6 * s, in0Y)
+            ctx.lineTo(mx - 4 * s, in0Y)
             ctx.stroke()
 
             ctx.fillStyle = colors['text']
             ctx.font = `${Math.round(5 * s)}px sans-serif`
             ctx.textAlign = 'right'
             ctx.textBaseline = 'middle'
-            ctx.fillText('0', mx - 7 * s, in0Y)
+            ctx.fillText('0', mx - 5 * s, in0Y)
 
-            // Input 1: stub from left labeled "RST" (connected from CLB RST input)
+            // Input 1: connected from RST vertical bus
             const in1Y = my + RC_MUX_H * 0.75 * s
-            const rstInputX = px  // CLB left edge
+            const rstBusX = px + (LUT_X + LUT_ADDR_W + LUT_BIT_W + 8 + 10) * s
             ctx.strokeStyle = colors['stroke']
             ctx.beginPath()
             ctx.moveTo(mx, in1Y)
-            ctx.lineTo(mx - 6 * s, in1Y)
+            ctx.lineTo(rstBusX, in1Y)
             ctx.stroke()
-
-            ctx.fillStyle = colors['text']
-            ctx.textAlign = 'right'
-            ctx.fillText('RST', mx - 7 * s, in1Y)
         }
     }
 
@@ -802,6 +821,91 @@ export default class FPGA extends CircuitElement {
 
         ctx.fillStyle = colors['text']
         ctx.fillText('RST', (xx + rstX) * s + globalScope.ox, (yy + botEdge + GLOBAL_STUB + 2) * s + globalScope.oy)
+    }
+
+    /** Fixed connections between CLB pins and vertical channel wires. */
+    _drawCLBConnections(ctx, ox, oy) {
+        const s = globalScope.scale
+        const xx = this.x + ox
+        const yy = this.y + oy
+        const halfSB = SB_SIZE / 2
+        const DOT_R = 3
+
+        // LUT input Y positions within CLB (at horizontal lines of the table)
+        // in0=MSB at row boundary 3, in1 at boundary 4 (center), in2=LSB at boundary 5
+        const inY = [
+            LUT_Y + 3 * LUT_ROW_H,  // in0 (MSB)
+            LUT_Y + 4 * LUT_ROW_H,  // in1
+            LUT_Y + 5 * LUT_ROW_H,  // in2 (LSB)
+        ]
+        // CLB output Y (matches MUX output in _drawCLBWiring)
+        const outY = MUX_Y + MUX_H / 2
+
+        ctx.strokeStyle = colors['stroke']
+        ctx.lineWidth = correctWidth(0.5)
+
+        for (let r = 0; r < this.rows; r++) {
+            const clbCY = this.clbY[r]
+
+            for (let c = 0; c < this.cols; c++) {
+                const clbCX = this.clbX[c]
+
+                // --- Inputs: connect from left vertical channel ---
+                const vi_in = c  // channel to the left of column c
+                const nw_in = this._vWireCount(vi_in)
+                const bw_in = (nw_in - 1) * WIRE_PITCH
+                const baseX_in = this.vChanX[vi_in] - bw_in / 2
+
+                // Pick the rightmost N_INPUTS wires from this channel
+                const firstInputWire = nw_in - N_INPUTS
+                for (let i = 0; i < N_INPUTS; i++) {
+                    const wireIdx = firstInputWire + i
+                    const wx = baseX_in + wireIdx * WIRE_PITCH
+                    const pinY = clbCY + inY[i]
+                    const clbLeft = clbCX + LUT_X  // LUT left edge
+
+                    // Horizontal line from wire to LUT left edge
+                    const pWx = (xx + wx) * s + globalScope.ox
+                    const pPinY = (yy + pinY) * s + globalScope.oy
+                    const pClbLeft = (xx + clbLeft) * s + globalScope.ox
+                    ctx.beginPath()
+                    ctx.moveTo(pWx, pPinY)
+                    ctx.lineTo(pClbLeft, pPinY)
+                    ctx.stroke()
+
+                    // Connection dot on the vertical wire
+                    ctx.fillStyle = colors['stroke']
+                    ctx.beginPath()
+                    ctx.arc(pWx, pPinY, DOT_R * s, 0, 2 * Math.PI)
+                    ctx.fill()
+                }
+
+                // --- Output: connect to closest wire in right vertical channel ---
+                const vi_out = c + 1
+                const nw_out = this._vWireCount(vi_out)
+                const bw_out = (nw_out - 1) * WIRE_PITCH
+                const baseX_out = this.vChanX[vi_out] - bw_out / 2
+                // Closest wire = leftmost (wire 0) in the right channel
+                const outWx = baseX_out
+                const outPinY = clbCY + outY
+                const clbRight = clbCX + CLB_W  // CLB right edge
+
+                const pOutWx = (xx + outWx) * s + globalScope.ox
+                const pOutPinY = (yy + outPinY) * s + globalScope.oy
+                const pClbRight = (xx + clbRight) * s + globalScope.ox
+                ctx.strokeStyle = colors['stroke']
+                ctx.beginPath()
+                ctx.moveTo(pClbRight, pOutPinY)
+                ctx.lineTo(pOutWx, pOutPinY)
+                ctx.stroke()
+
+                // Connection dot on the vertical wire
+                ctx.fillStyle = colors['stroke']
+                ctx.beginPath()
+                ctx.arc(pOutWx, pOutPinY, DOT_R * s, 0, 2 * Math.PI)
+                ctx.fill()
+            }
+        }
     }
 
     /** Vertical wire segments between switch boxes. */
