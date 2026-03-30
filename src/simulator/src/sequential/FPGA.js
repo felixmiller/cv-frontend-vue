@@ -155,12 +155,13 @@ export default class FPGA extends CircuitElement {
      * Returns { inputs: [...], outputs: [...], all: [...] }
      * Each port: { name, side, wireIdx, isOutput }
      *
-     * Variants by position:
-     *   Central (0<vi<cols, 0<hi<rows): T/B=4 wires (w0=in, w1-3=out), L/R=4 interleaved
-     *   Top/Bottom edge: missing T or B ports respectively
-     *   Left edge (vi=0): T/B=3 wires (all outputs), L=1 input (I/O pin)
-     *   Right edge (vi=cols): T/B=1 wire (input only), R=1 output (I/O pin)
-     *   Corners: combinations of the above
+     * Vertical wire layout per channel:
+     *   Left (5 wires):     w0=SB-down, w1=SB-up, w2-4=CLB inputs
+     *   Interior (6 wires): w0=CLB output, w1=SB-down, w2=SB-up, w3-5=CLB inputs
+     *   Right (1 wire):     w0=CLB output
+     *
+     * SB-down wires: top=input, bottom=output (signal flows downward)
+     * SB-up wires: top=output, bottom=input (signal flows upward)
      */
     _sbPorts(vi, hi) {
         const ports = []
@@ -170,32 +171,37 @@ export default class FPGA extends CircuitElement {
         const isLeft = vi === 0
         const isRight = vi === this.cols
 
+        // Determine wire roles for this channel
+        // Returns true if this wire is an output from the SB on the given side
+        const vWireIsOutput = (w, side) => {
+            if (isRight) return false  // rightmost: wire 0 is CLB output = always input to SB
+
+            if (isLeft) {
+                // Left channel: w0=SB-down, w1=SB-up, w2-4=CLB inputs (outputs from SB)
+                if (w >= 2) return true  // CLB inputs are always outputs
+                if (w === 0) return side === 'B'  // SB-down: top=in, bottom=out
+                if (w === 1) return side === 'T'  // SB-up: top=out, bottom=in
+            } else {
+                // Interior: w0=CLB output (input), w1=SB-down, w2=SB-up, w3-5=CLB inputs
+                if (w === 0) return false  // CLB output is always input to SB
+                if (w >= 3) return true    // CLB inputs are always outputs
+                if (w === 1) return side === 'B'  // SB-down: top=in, bottom=out
+                if (w === 2) return side === 'T'  // SB-up: top=out, bottom=in
+            }
+            return false
+        }
+
         // Top vertical ports (skip if at top edge)
         if (!isTop) {
             for (let w = 0; w < nv; w++) {
-                if (isLeft) {
-                    // Leftmost channel: all wires are CLB inputs → outputs from SB
-                    ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: true })
-                } else if (isRight) {
-                    // Rightmost channel: 1 wire = CLB output → input to SB
-                    ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: false })
-                } else {
-                    // Interior: wire 0 = input (CLB output), rest = outputs (CLB inputs)
-                    ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: w > 0 })
-                }
+                ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: vWireIsOutput(w, 'T') })
             }
         }
 
         // Bottom vertical ports (skip if at bottom edge)
         if (!isBot) {
             for (let w = 0; w < nv; w++) {
-                if (isLeft) {
-                    ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: true })
-                } else if (isRight) {
-                    ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: false })
-                } else {
-                    ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: w > 0 })
-                }
+                ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: vWireIsOutput(w, 'B') })
             }
         }
 
@@ -324,9 +330,12 @@ export default class FPGA extends CircuitElement {
 
     /** Number of vertical wires in channel vi. */
     _vWireCount(vi) {
-        if (vi === 0) return this.nInputs              // left: CLB inputs only
-        if (vi < this.cols) return this.nInputs + 1    // interior: CLB output + inputs
-        return 1                                        // right: CLB output only
+        // Left: 2 SB-connect + 3 CLB inputs = 5
+        // Interior: 1 CLB output + 2 SB-connect + 3 CLB inputs = 6
+        // Right: 1 CLB output only
+        if (vi === 0) return 2 + this.nInputs
+        if (vi < this.cols) return 1 + 2 + this.nInputs
+        return 1
     }
 
     _buildNodes() {
@@ -1020,7 +1029,7 @@ export default class FPGA extends CircuitElement {
                 this._drawFF(ctx, px, py, s)
                 this._drawMux(ctx, px, py, s, key, hover)
                 this._drawPreClrMuxes(ctx, px, py, s, key, hover)
-                this._drawCLBWiring(ctx, px, py, s)
+                this._drawCLBWiring(ctx, px, py, s, key)
             }
         }
     }
@@ -1048,8 +1057,7 @@ export default class FPGA extends CircuitElement {
             ctx.strokeStyle = colors['stroke']
             ctx.lineWidth = correctWidth(0.5)
             if (isActive) {
-                const lutOut = this._clbLutOut[key]
-                ctx.fillStyle = this._wireColor(lutOut) + '40'  // semi-transparent
+                ctx.fillStyle = colors['hover_select']
             } else {
                 ctx.fillStyle = colors['fill']
             }
@@ -1073,8 +1081,7 @@ export default class FPGA extends CircuitElement {
             if (isHover) {
                 ctx.fillStyle = colors['hover_select']
             } else if (isActive) {
-                const lutOut = this._clbLutOut[key]
-                ctx.fillStyle = this._wireColor(lutOut) + '40'
+                ctx.fillStyle = colors['hover_select']
             } else {
                 ctx.fillStyle = colors['fill']
             }
@@ -1187,11 +1194,11 @@ export default class FPGA extends CircuitElement {
             sy + (SRAM_SIZE / 2) * s
         )
 
-        // Vertical line from SRAM to MUX bottom (account for taper at center)
+        // Vertical select line from SRAM to MUX bottom (colored by sel value)
         const midX = px + (SRAM_X + SRAM_SIZE / 2) * s
         const muxBotAtCenter = my + MUX_H * s - taper / 2
-        ctx.strokeStyle = colors['stroke']
-        ctx.lineWidth = correctWidth(0.5)
+        ctx.strokeStyle = this._wireColor(this.muxSel[key])
+        ctx.lineWidth = correctWidth(1)
         ctx.beginPath()
         ctx.moveTo(midX, sy)
         ctx.lineTo(midX, muxBotAtCenter)
@@ -1199,21 +1206,32 @@ export default class FPGA extends CircuitElement {
     }
 
     /** Internal wiring: LUT -> fork -> FF.D and MUX.0, FF.Q -> MUX.1, MUX.out -> CLB out */
-    _drawCLBWiring(ctx, px, py, s) {
-        ctx.strokeStyle = colors['stroke']
-        ctx.lineWidth = correctWidth(0.5)
+    _drawCLBWiring(ctx, px, py, s, key) {
+        const lutOut = this._clbLutOut[key]
+        const ffQ = this.ffState[key]
+        const clbOut = this._clbOut[key]
+        const clkVal = this.clkNode.value
+        const rstVal = this.rstNode.value
+        const lutColor = this._wireColor(lutOut)
+        const ffColor = this._wireColor(ffQ)
+        const outColor = this._wireColor(clbOut)
+        const clkColor = this._wireColor(clkVal)
+        const rstColor = this._wireColor(rstVal)
+        const w = val => correctWidth(val !== undefined ? 1 : 0.5)
 
         // LUT output to fork point
         const lutOutX = px + (LUT_X + LUT_ADDR_W + LUT_BIT_W) * s
         const lutOutY = py + (LUT_Y + (N_LUT_ENTRIES * LUT_ROW_H) / 2) * s
         const forkX = px + (LUT_X + LUT_ADDR_W + LUT_BIT_W + 8) * s
+        ctx.strokeStyle = lutColor
+        ctx.lineWidth = w(lutOut)
         ctx.beginPath()
         ctx.moveTo(lutOutX, lutOutY)
         ctx.lineTo(forkX, lutOutY)
         ctx.stroke()
 
         // Fork dot
-        ctx.fillStyle = colors['stroke']
+        ctx.fillStyle = lutColor
         ctx.beginPath()
         ctx.arc(forkX, lutOutY, 2 * s, 0, 2 * Math.PI)
         ctx.fill()
@@ -1221,6 +1239,8 @@ export default class FPGA extends CircuitElement {
         // Fork to FF.D
         const ffDY = py + (FF_Y + FF_H * FF_DQ_REL) * s
         const ffDX = px + FF_X * s
+        ctx.strokeStyle = lutColor
+        ctx.lineWidth = w(lutOut)
         ctx.beginPath()
         ctx.moveTo(forkX, lutOutY)
         ctx.lineTo(forkX, ffDY)
@@ -1230,6 +1250,8 @@ export default class FPGA extends CircuitElement {
         // Fork to MUX input 0 (combinatorial bypass)
         const mux0Y = py + (MUX_Y + MUX_H * 0.25) * s
         const muxLeftX = px + MUX_X * s
+        ctx.strokeStyle = lutColor
+        ctx.lineWidth = w(lutOut)
         ctx.beginPath()
         ctx.moveTo(forkX, lutOutY)
         ctx.lineTo(forkX, mux0Y)
@@ -1240,6 +1262,8 @@ export default class FPGA extends CircuitElement {
         const ffQX = px + (FF_X + FF_W) * s
         const ffQY = py + (FF_Y + FF_H * FF_DQ_REL) * s
         const mux1Y = py + (MUX_Y + MUX_H * 0.75) * s
+        ctx.strokeStyle = ffColor
+        ctx.lineWidth = w(ffQ)
         ctx.beginPath()
         ctx.moveTo(ffQX, ffQY)
         const ffMuxMidX = px + ((FF_X + FF_W + MUX_X) / 2) * s
@@ -1252,6 +1276,8 @@ export default class FPGA extends CircuitElement {
         const muxOutX = px + (MUX_X + MUX_W) * s
         const muxOutY = py + (MUX_Y + MUX_H / 2) * s
         const clbRightX = px + CLB_W * s
+        ctx.strokeStyle = outColor
+        ctx.lineWidth = w(clbOut)
         ctx.beginPath()
         ctx.moveTo(muxOutX, muxOutY)
         ctx.lineTo(clbRightX, muxOutY)
@@ -1262,13 +1288,13 @@ export default class FPGA extends CircuitElement {
         const clbLeftX = px
         const ffClkX = px + FF_X * s
         const ffClkY = py + (FF_Y + FF_H * FF_CLK_REL) * s
-        // Vertical segment aligned with LUT output fork
         const clkVertX = forkX
+        ctx.strokeStyle = clkColor
+        ctx.lineWidth = w(clkVal)
         ctx.beginPath()
         ctx.moveTo(clbLeftX, clkY)
-        ctx.lineTo(clbLeftX - 5 * s, clkY)  // small stub outside CLB
+        ctx.lineTo(clbLeftX - 5 * s, clkY)
         ctx.stroke()
-        // Wire from input to FF clock via vertical aligned with fork
         ctx.beginPath()
         ctx.moveTo(clbLeftX, clkY)
         ctx.lineTo(clkVertX, clkY)
@@ -1284,25 +1310,24 @@ export default class FPGA extends CircuitElement {
 
         // RST input: from CLB left edge, vertical line connecting to PRE/CLR mux "1" inputs
         const rstY = py + CLB_RST_Y * s
-        const rstVertX = forkX + 10 * s  // vertical RST bus, 1 grid right of CLK/fork
+        const rstVertX = forkX + 10 * s
         const preMux1Y = py + (PRE_MUX_Y + RC_MUX_H * 0.75) * s
-        ctx.strokeStyle = colors['stroke']
+        ctx.strokeStyle = rstColor
+        ctx.lineWidth = w(rstVal)
         ctx.beginPath()
         ctx.moveTo(clbLeftX, rstY)
-        ctx.lineTo(clbLeftX - 5 * s, rstY)  // small stub outside CLB
+        ctx.lineTo(clbLeftX - 5 * s, rstY)
         ctx.stroke()
-        // Horizontal from input to vertical bus
         ctx.beginPath()
         ctx.moveTo(clbLeftX, rstY)
         ctx.lineTo(rstVertX, rstY)
         ctx.stroke()
-        // Vertical bus up to PRE mux input
         ctx.beginPath()
         ctx.moveTo(rstVertX, rstY)
         ctx.lineTo(rstVertX, preMux1Y)
         ctx.stroke()
         // Connection dot at junction
-        ctx.fillStyle = colors['stroke']
+        ctx.fillStyle = rstColor
         ctx.beginPath()
         ctx.arc(rstVertX, rstY, 2 * s, 0, 2 * Math.PI)
         ctx.fill()
@@ -1314,6 +1339,8 @@ export default class FPGA extends CircuitElement {
 
     /** PRE/CLR muxes with SRAM cells inside a CLB. */
     _drawPreClrMuxes(ctx, px, py, s, key, hover) {
+        const rstVal = this.rstNode.value
+        const rstColor = this._wireColor(rstVal)
         const configs = [
             { muxX: PRE_MUX_X, muxY: PRE_MUX_Y, sramY: PRE_SRAM_Y, sel: this.preSel[key], type: 'pre', sramBelow: true },
             { muxX: CLR_MUX_X, muxY: CLR_MUX_Y, sramY: CLR_SRAM_Y, sel: this.clrSel[key], type: 'clr', sramBelow: false },
@@ -1323,6 +1350,10 @@ export default class FPGA extends CircuitElement {
             const mx = px + cfg.muxX * s
             const my = py + cfg.muxY * s
             const taper = 2 * s
+
+            // Mux output value: sel=0 → const 0, sel=1 → RST
+            const muxOut = cfg.sel === 1 ? (rstVal || 0) : 0
+            const muxOutColor = this._wireColor(muxOut)
 
             // Small trapezoid mux
             ctx.strokeStyle = colors['stroke']
@@ -1366,11 +1397,11 @@ export default class FPGA extends CircuitElement {
                 sy + (RC_SRAM_SIZE / 2) * s
             )
 
-            // Vertical line from SRAM to MUX (account for taper at center)
+            // Vertical select line from SRAM to MUX (colored by sel value)
             const sramMidX = sx + (RC_SRAM_SIZE / 2) * s
-            const halfTaper = taper / 2  // taper at midpoint of trapezoid edge
-            ctx.strokeStyle = colors['stroke']
-            ctx.lineWidth = correctWidth(0.5)
+            const halfTaper = taper / 2
+            ctx.strokeStyle = this._wireColor(cfg.sel)
+            ctx.lineWidth = correctWidth(1)
             ctx.beginPath()
             if (cfg.sramBelow) {
                 ctx.moveTo(sramMidX, sy)
@@ -1381,10 +1412,12 @@ export default class FPGA extends CircuitElement {
             }
             ctx.stroke()
 
-            // Mux output line to FF PRE/CLR
+            // Mux output line to FF PRE/CLR (colored by mux output)
             const muxOutX = mx + RC_MUX_W * s
             const muxOutY = my + (RC_MUX_H / 2) * s
             const ffMidX = px + (FF_X + FF_W / 2) * s
+            ctx.strokeStyle = muxOutColor
+            ctx.lineWidth = correctWidth(1)
             ctx.beginPath()
             ctx.moveTo(muxOutX, muxOutY)
             ctx.lineTo(ffMidX, muxOutY)
@@ -1395,8 +1428,10 @@ export default class FPGA extends CircuitElement {
             }
             ctx.stroke()
 
-            // Input 0: short stub from left (constant 0)
+            // Input 0: short stub from left (constant 0, colored)
             const in0Y = my + RC_MUX_H * 0.25 * s
+            ctx.strokeStyle = this._wireColor(0)
+            ctx.lineWidth = correctWidth(1)
             ctx.beginPath()
             ctx.moveTo(mx, in0Y)
             ctx.lineTo(mx - 4 * s, in0Y)
@@ -1408,10 +1443,11 @@ export default class FPGA extends CircuitElement {
             ctx.textBaseline = 'middle'
             ctx.fillText('0', mx - 5 * s, in0Y)
 
-            // Input 1: connected from RST vertical bus
+            // Input 1: connected from RST vertical bus (colored by RST)
             const in1Y = my + RC_MUX_H * 0.75 * s
             const rstBusX = px + (LUT_X + LUT_ADDR_W + LUT_BIT_W + 8 + 10) * s
-            ctx.strokeStyle = colors['stroke']
+            ctx.strokeStyle = rstColor
+            ctx.lineWidth = correctWidth(rstVal !== undefined ? 1 : 0.5)
             ctx.beginPath()
             ctx.moveTo(mx, in1Y)
             ctx.lineTo(rstBusX, in1Y)
