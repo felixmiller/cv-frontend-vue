@@ -23,7 +23,7 @@ const N_LUT_ENTRIES = 1 << N_INPUTS  // 8
 const CLB_W = 140                  // CLB box width
 const CLB_H = 110                  // CLB box height
 const SB_SIZE = 40                 // switch box size
-const H_WIRE_COUNT = 3             // horizontal wires per channel
+const H_WIRE_COUNT = 4             // horizontal wires per channel
 const WIRE_PITCH = 10              // spacing between parallel wires
 const CH_GAP = 30                  // gap between channel edge and CLB box
 const IO_STUB = 30                 // I/O pin stub length
@@ -80,7 +80,8 @@ export default class FPGA extends CircuitElement {
         x, y, scope = globalScope,
         rows = 2, cols = 2,
         luts = null, muxSel = null,
-        preSel = null, clrSel = null
+        preSel = null, clrSel = null,
+        sbMuxes = null
     ) {
         super(x, y, scope, 'RIGHT', 1)
         this.fixedBitWidth = true
@@ -99,6 +100,12 @@ export default class FPGA extends CircuitElement {
         this.preSel = preSel || this._defaultMuxSel()
         // CLR mux select: { "r,c": 0 (const 0) or 1 (RST signal) }
         this.clrSel = clrSel || this._defaultMuxSel()
+        // SB mux configs: { "vi,hi": { "portName": selectedInput (0=n.c., 1..N=input index) } }
+        this.sbMuxes = sbMuxes || this._defaultSbMuxes()
+
+        // UI state for SB interaction (not saved)
+        this.activeSB = null          // { vi, hi } of the magnified SB, or null
+        this.activePort = null        // selected output port name in the magnified SB, or null
 
         this._buildLayout()
         this._buildNodes()
@@ -120,6 +127,127 @@ export default class FPGA extends CircuitElement {
             for (let c = 0; c < this.cols; c++)
                 mux[`${r},${c}`] = 0  // combinatorial by default
         return mux
+    }
+
+    /**
+     * Get the port definitions for a switch box at position (vi, hi).
+     * Returns { inputs: [...], outputs: [...], all: [...] }
+     * Each port: { name, side, wireIdx, isOutput }
+     *
+     * Variants by position:
+     *   Central (0<vi<cols, 0<hi<rows): T/B=4 wires (w0=in, w1-3=out), L/R=4 interleaved
+     *   Top/Bottom edge: missing T or B ports respectively
+     *   Left edge (vi=0): T/B=3 wires (all outputs), L=1 input (I/O pin)
+     *   Right edge (vi=cols): T/B=1 wire (input only), R=1 output (I/O pin)
+     *   Corners: combinations of the above
+     */
+    _sbPorts(vi, hi) {
+        const ports = []
+        const nv = this._vWireCount(vi)
+        const isTop = hi === 0
+        const isBot = hi === this.rows
+        const isLeft = vi === 0
+        const isRight = vi === this.cols
+
+        // Top vertical ports (skip if at top edge)
+        if (!isTop) {
+            for (let w = 0; w < nv; w++) {
+                if (isLeft) {
+                    // Leftmost channel: all wires are CLB inputs → outputs from SB
+                    ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: true })
+                } else if (isRight) {
+                    // Rightmost channel: 1 wire = CLB output → input to SB
+                    ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: false })
+                } else {
+                    // Interior: wire 0 = input (CLB output), rest = outputs (CLB inputs)
+                    ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: w > 0 })
+                }
+            }
+        }
+
+        // Bottom vertical ports (skip if at bottom edge)
+        if (!isBot) {
+            for (let w = 0; w < nv; w++) {
+                if (isLeft) {
+                    ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: true })
+                } else if (isRight) {
+                    ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: false })
+                } else {
+                    ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: w > 0 })
+                }
+            }
+        }
+
+        // Left horizontal ports
+        if (isLeft) {
+            // Left edge: single input port (I/O pin)
+            ports.push({ name: 'L0', side: 'L', wireIdx: 0, isOutput: false })
+        } else {
+            // Interior/right: 4 wires interleaved
+            // Even wires go right: input on left side
+            // Odd wires go left: output on left side
+            for (let w = 0; w < H_WIRE_COUNT; w++) {
+                ports.push({ name: `L${w}`, side: 'L', wireIdx: w, isOutput: w % 2 === 1 })
+            }
+        }
+
+        // Right horizontal ports
+        if (isRight) {
+            // Right edge: single output port (I/O pin)
+            ports.push({ name: 'R0', side: 'R', wireIdx: 0, isOutput: true })
+        } else {
+            // Interior/left: 4 wires interleaved
+            // Even wires go right: output on right side
+            // Odd wires go left: input on right side
+            for (let w = 0; w < H_WIRE_COUNT; w++) {
+                ports.push({ name: `R${w}`, side: 'R', wireIdx: w, isOutput: w % 2 === 0 })
+            }
+        }
+
+        const inputs = ports.filter(p => !p.isOutput)
+        const outputs = ports.filter(p => p.isOutput)
+        return { inputs, outputs, all: ports }
+    }
+
+    /** Default SB muxes: all outputs set to 0 (n.c.) */
+    _defaultSbMuxes() {
+        const sbs = {}
+        for (let vi = 0; vi <= this.cols; vi++) {
+            for (let hi = 0; hi <= this.rows; hi++) {
+                const { outputs } = this._sbPorts(vi, hi)
+                const muxes = {}
+                for (const p of outputs) muxes[p.name] = 0  // n.c.
+                sbs[`${vi},${hi}`] = muxes
+            }
+        }
+        return sbs
+    }
+
+    /**
+     * Get the pixel position of a port within the SB box.
+     * Returns { x, y } relative to SB center, in circuit units.
+     */
+    _sbPortPos(vi, port) {
+        const half = SB_SIZE / 2
+        const nv = this._vWireCount(vi)
+        const vBw = (nv - 1) * WIRE_PITCH
+        const hBw = (H_WIRE_COUNT - 1) * WIRE_PITCH
+        const isLeft = vi === 0
+        const isRight = vi === this.cols
+
+        if (port.side === 'T' || port.side === 'B') {
+            const x = -vBw / 2 + port.wireIdx * WIRE_PITCH
+            const y = port.side === 'T' ? -half : half
+            return { x, y }
+        } else {
+            const x = port.side === 'L' ? -half : half
+            // Edge SBs with single L/R port: center it
+            if ((isLeft && port.side === 'L') || (isRight && port.side === 'R')) {
+                return { x, y: 0 }
+            }
+            const y = -hBw / 2 + port.wireIdx * WIRE_PITCH
+            return { x, y }
+        }
     }
 
     // -- Layout ---------------------------------------------------------------
@@ -175,9 +303,9 @@ export default class FPGA extends CircuitElement {
 
     /** Number of vertical wires in channel vi. */
     _vWireCount(vi) {
-        if (vi === 0) return this.nInputs
-        if (vi < this.cols) return this.nInputs + 1
-        return 2  // rightmost channel
+        if (vi === 0) return this.nInputs              // left: CLB inputs only
+        if (vi < this.cols) return this.nInputs + 1    // interior: CLB output + inputs
+        return 1                                        // right: CLB output only
     }
 
     _buildNodes() {
@@ -191,10 +319,10 @@ export default class FPGA extends CircuitElement {
             const leftX = this.offsetX + this.vChanX[0] - SB_SIZE / 2 - IO_STUB
             const rightX = this.offsetX + this.vChanX[this.cols] + SB_SIZE / 2 + IO_STUB
             this.ioNodesLeft.push(
-                new Node(leftX, ny, 0, this, 1, `P${hi * 2}`)
+                new Node(leftX, ny, 0, this, 1, `IN${hi}`)
             )
             this.ioNodesRight.push(
-                new Node(rightX, ny, 1, this, 1, `P${hi * 2 + 1}`)
+                new Node(rightX, ny, 1, this, 1, `OUT${hi}`)
             )
         }
 
@@ -213,6 +341,7 @@ export default class FPGA extends CircuitElement {
                 this.rows, this.cols,
                 this.luts, this.muxSel,
                 this.preSel, this.clrSel,
+                this.sbMuxes,
             ],
             nodes: {
                 ioNodesLeft: this.ioNodesLeft.map(findNode),
@@ -232,6 +361,44 @@ export default class FPGA extends CircuitElement {
     // -- Click handling -------------------------------------------------------
 
     click() {
+        // If magnified SB is active, handle clicks inside it first
+        if (this.activeSB) {
+            const sbHit = this._hitActiveSBPort()
+            if (sbHit) {
+                if (sbHit.type === 'port') {
+                    const port = sbHit.port
+                    if (port.isOutput) {
+                        // Select/deselect output port
+                        if (this.activePort === port.name) {
+                            // Already selected — cycle the mux
+                            const key = `${this.activeSB.vi},${this.activeSB.hi}`
+                            const { inputs } = this._sbPorts(this.activeSB.vi, this.activeSB.hi)
+                            const muxes = this.sbMuxes[key]
+                            const cur = muxes[port.name] || 0
+                            muxes[port.name] = (cur + 1) % (inputs.length + 1)  // 0=n.c., 1..N
+                            forceResetNodesSet(true)
+                        } else {
+                            this.activePort = port.name
+                        }
+                    }
+                }
+                return
+            }
+            // Click outside magnified SB — close it
+            this.activeSB = null
+            this.activePort = null
+            return
+        }
+
+        // Check if click is on an SB (normal size)
+        const sbHit = this._hitSB()
+        if (sbHit) {
+            this.activeSB = sbHit
+            this.activePort = null
+            return
+        }
+
+        // Otherwise handle CLB clicks
         const hit = this._hitCLB()
         if (!hit) return
 
@@ -248,6 +415,47 @@ export default class FPGA extends CircuitElement {
             this.clrSel[hit.key] ^= 1
             forceResetNodesSet(true)
         }
+    }
+
+    /** Hit-test: is the mouse over a normal-size switch box? */
+    _hitSB() {
+        const mx = simulationArea.mouseXf - this.x - this.offsetX
+        const my = simulationArea.mouseYf - this.y - this.offsetY
+        const half = SB_SIZE / 2
+
+        for (let vi = 0; vi <= this.cols; vi++) {
+            for (let hi = 0; hi <= this.rows; hi++) {
+                const cx = this.vChanX[vi]
+                const cy = this.hChanY[hi]
+                if (mx >= cx - half && mx <= cx + half &&
+                    my >= cy - half && my <= cy + half) {
+                    return { vi, hi }
+                }
+            }
+        }
+        return null
+    }
+
+    /** Hit-test: is the mouse over a port in the active SB? */
+    _hitActiveSBPort() {
+        if (!this.activeSB) return null
+        const { vi, hi } = this.activeSB
+        const mx = simulationArea.mouseXf - this.x - this.offsetX
+        const my = simulationArea.mouseYf - this.y - this.offsetY
+        const cx = this.vChanX[vi]
+        const cy = this.hChanY[hi]
+        const { all } = this._sbPorts(vi, hi)
+        const hitR = 5  // hit radius for ports
+
+        for (const port of all) {
+            const pos = this._sbPortPos(vi, port)
+            const px = cx + pos.x
+            const py = cy + pos.y
+            if (Math.abs(mx - px) <= hitR && Math.abs(my - py) <= hitR) {
+                return { type: 'port', port }
+            }
+        }
+        return null
     }
 
     /**
@@ -300,9 +508,9 @@ export default class FPGA extends CircuitElement {
         return null
     }
 
-    /** Suppress drag/selection highlight when clicking inside CLBs. */
+    /** Suppress drag/selection highlight when clicking inside CLBs or SBs. */
     _mouseInGrid() {
-        return this._hitCLB() !== null
+        return this._hitCLB() !== null || this._hitSB() !== null || this.activeSB !== null
     }
 
     // -- Drawing --------------------------------------------------------------
@@ -352,18 +560,166 @@ export default class FPGA extends CircuitElement {
         const yy = this.y + oy
         const half = SB_SIZE / 2
 
-        ctx.strokeStyle = colors['stroke']
-        ctx.lineWidth = correctWidth(1)
-        ctx.fillStyle = colors['fill']
+        for (let vi = 0; vi <= this.cols; vi++) {
+            for (let hi = 0; hi <= this.rows; hi++) {
+                const cx = this.vChanX[vi]
+                const cy = this.hChanY[hi]
+                const sbPx = (xx + cx - half) * s + globalScope.ox
+                const sbPy = (yy + cy - half) * s + globalScope.oy
+                const sbCx = (xx + cx) * s + globalScope.ox
+                const sbCy = (yy + cy) * s + globalScope.oy
+                const key = `${vi},${hi}`
+                const muxes = this.sbMuxes[key]
+                const isActive = this.activeSB && this.activeSB.vi === vi && this.activeSB.hi === hi
+                const { inputs, outputs, all } = this._sbPorts(vi, hi)
+
+                // SB box
+                ctx.strokeStyle = colors['stroke']
+                ctx.lineWidth = correctWidth(isActive ? 2 : 1)
+                ctx.fillStyle = colors['fill']
+                ctx.fillRect(sbPx, sbPy, SB_SIZE * s, SB_SIZE * s)
+                ctx.strokeRect(sbPx, sbPy, SB_SIZE * s, SB_SIZE * s)
+
+                if (!muxes) continue
+
+                // Draw active connections inside the SB
+                for (const outPort of outputs) {
+                    const selIdx = muxes[outPort.name]
+                    if (!selIdx || selIdx === 0) continue  // n.c.
+                    const inPort = inputs[selIdx - 1]
+                    if (!inPort) continue
+                    const from = this._sbPortPos(vi, inPort)
+                    const to = this._sbPortPos(vi, outPort)
+
+                    // Highlight the active port's connection in blue
+                    const isSelectedConn = isActive && this.activePort === outPort.name
+                    ctx.strokeStyle = isSelectedConn ? '#0066cc' : colors['stroke']
+                    ctx.lineWidth = correctWidth(isSelectedConn ? 2 : 1)
+
+                    const fx = sbCx + from.x * s
+                    const fy = sbCy + from.y * s
+                    const tx = sbCx + to.x * s
+                    const ty = sbCy + to.y * s
+
+                    if (inPort.side === outPort.side) {
+                        // Same side: draw an arc bowing inward toward SB center
+                        const midX = (fx + tx) / 2
+                        const midY = (fy + ty) / 2
+                        const dist = Math.sqrt((tx - fx) ** 2 + (ty - fy) ** 2)
+                        const bulge = Math.max(dist * 0.5, 6 * s)
+                        // Control point pushed toward SB center
+                        let cpx = midX, cpy = midY
+                        if (inPort.side === 'T') cpy += bulge
+                        else if (inPort.side === 'B') cpy -= bulge
+                        else if (inPort.side === 'L') cpx += bulge
+                        else cpx -= bulge
+
+                        ctx.beginPath()
+                        ctx.moveTo(fx, fy)
+                        ctx.quadraticCurveTo(cpx, cpy, tx, ty)
+                        ctx.stroke()
+                    } else {
+                        ctx.beginPath()
+                        ctx.moveTo(fx, fy)
+                        ctx.lineTo(tx, ty)
+                        ctx.stroke()
+                    }
+                }
+
+                // When active, draw port indicators
+                if (isActive) {
+                    const portR = 3 * s
+
+                    for (const port of all) {
+                        const pos = this._sbPortPos(vi, port)
+                        const px = sbCx + pos.x * s
+                        const py = sbCy + pos.y * s
+
+                        const isSelected = this.activePort === port.name
+                        ctx.beginPath()
+                        ctx.arc(px, py, portR, 0, 2 * Math.PI)
+                        if (isSelected) {
+                            ctx.fillStyle = colors['hover_select']
+                        } else if (port.isOutput) {
+                            ctx.fillStyle = '#aaddff'
+                        } else {
+                            ctx.fillStyle = colors['fill']
+                        }
+                        ctx.fill()
+                        ctx.strokeStyle = colors['stroke']
+                        ctx.lineWidth = correctWidth(0.5)
+                        ctx.stroke()
+                    }
+
+                    // Show label for selected port
+                    if (this.activePort && muxes) {
+                        const selIdx = muxes[this.activePort] || 0
+                        const label = selIdx === 0 ? 'n.c.' : inputs[selIdx - 1]?.name || '?'
+                        ctx.fillStyle = colors['text']
+                        ctx.font = `${Math.round(6 * s)}px sans-serif`
+                        ctx.textAlign = 'center'
+                        ctx.textBaseline = 'middle'
+                        ctx.fillText(`${this.activePort}←${label}`, sbCx, sbCy)
+                    }
+                }
+            }
+        }
+
+        // Draw direction arrows on wires near each SB
+        this._drawSBArrows(ctx, xx, yy, s)
+    }
+
+    /** Small filled triangle arrow. dir: 'up','down','left','right' */
+    _drawArrow(ctx, x, y, dir, size) {
+        ctx.beginPath()
+        if (dir === 'up') {
+            ctx.moveTo(x, y - size); ctx.lineTo(x - size, y + size); ctx.lineTo(x + size, y + size)
+        } else if (dir === 'down') {
+            ctx.moveTo(x, y + size); ctx.lineTo(x - size, y - size); ctx.lineTo(x + size, y - size)
+        } else if (dir === 'left') {
+            ctx.moveTo(x - size, y); ctx.lineTo(x + size, y - size); ctx.lineTo(x + size, y + size)
+        } else {
+            ctx.moveTo(x + size, y); ctx.lineTo(x - size, y - size); ctx.lineTo(x - size, y + size)
+        }
+        ctx.closePath()
+        ctx.fill()
+    }
+
+    /** Draw direction arrows on wires adjacent to switch boxes. */
+    _drawSBArrows(ctx, xx, yy, s) {
+        const half = SB_SIZE / 2
+        const gap = 5  // 0.5 grid from SB edge
+        const arrowSize = 1.5 * s
+
+        ctx.fillStyle = colors['stroke']
 
         for (let vi = 0; vi <= this.cols; vi++) {
             for (let hi = 0; hi <= this.rows; hi++) {
                 const cx = this.vChanX[vi]
                 const cy = this.hChanY[hi]
-                const px = (xx + cx - half) * s + globalScope.ox
-                const py = (yy + cy - half) * s + globalScope.oy
-                ctx.fillRect(px, py, SB_SIZE * s, SB_SIZE * s)
-                ctx.strokeRect(px, py, SB_SIZE * s, SB_SIZE * s)
+                const { all } = this._sbPorts(vi, hi)
+
+                for (const port of all) {
+                    const pos = this._sbPortPos(vi, port)
+                    const wx = (xx + cx + pos.x) * s + globalScope.ox
+                    const wy = (yy + cy + pos.y) * s + globalScope.oy
+
+                    // Arrow placed just outside the SB edge
+                    if (port.side === 'T') {
+                        const ay = wy - gap * s
+                        // Input = arrow pointing into SB (down), output = pointing away (up)
+                        this._drawArrow(ctx, wx, ay, port.isOutput ? 'up' : 'down', arrowSize)
+                    } else if (port.side === 'B') {
+                        const ay = wy + gap * s
+                        this._drawArrow(ctx, wx, ay, port.isOutput ? 'down' : 'up', arrowSize)
+                    } else if (port.side === 'L') {
+                        const ax = wx - gap * s
+                        this._drawArrow(ctx, ax, wy, port.isOutput ? 'left' : 'right', arrowSize)
+                    } else {
+                        const ax = wx + gap * s
+                        this._drawArrow(ctx, ax, wy, port.isOutput ? 'right' : 'left', arrowSize)
+                    }
+                }
             }
         }
     }
@@ -1007,13 +1363,13 @@ export default class FPGA extends CircuitElement {
 
             ctx.textAlign = 'right'
             ctx.fillText(
-                `P${hi * 2}`,
+                `IN${hi}`,
                 (xx + lx1 - 5) * s + globalScope.ox,
                 (yy + cy) * s + globalScope.oy
             )
             ctx.textAlign = 'left'
             ctx.fillText(
-                `P${hi * 2 + 1}`,
+                `OUT${hi}`,
                 (xx + rx2 + 5) * s + globalScope.ox,
                 (yy + cy) * s + globalScope.oy
             )
@@ -1023,7 +1379,7 @@ export default class FPGA extends CircuitElement {
 
 FPGA.prototype.tooltipText = 'FPGA: Island-style FPGA with configurable CLBs and routing'
 FPGA.prototype.objectType = 'FPGA'
-FPGA.prototype.constructorParametersDefault = [2, 2, null, null, null, null]
+FPGA.prototype.constructorParametersDefault = [2, 2, null, null, null, null, null]
 
 FPGA.prototype.mutableProperties = {
     rows: {
