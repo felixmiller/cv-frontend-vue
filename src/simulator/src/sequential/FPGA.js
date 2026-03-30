@@ -326,11 +326,12 @@ export default class FPGA extends CircuitElement {
             )
         }
 
-        // Global CLK and RST inputs below the FPGA
-        const botEdge = this.offsetY + this.hChanY[this.rows] + SB_SIZE / 2
-        const midX = this.offsetX + (this.vChanX[0] + this.vChanX[this.cols]) / 2
-        this.clkNode = new Node(snap10(midX - 20), snap10(botEdge + GLOBAL_STUB), 0, this, 1, 'CLK')
-        this.rstNode = new Node(snap10(midX + 20), snap10(botEdge + GLOBAL_STUB), 0, this, 1, 'RST')
+        // Global CLK and RST inputs on left edge, between IN0 and IN1
+        // Same X as I/O nodes (no extra border pad offset)
+        const leftX = this.offsetX + this.vChanX[0] - SB_SIZE / 2 - IO_STUB
+        const midY = this.offsetY + (this.hChanY[0] + this.hChanY[Math.min(1, this.rows)]) / 2
+        this.clkNode = new Node(snap10(leftX), snap10(midY - 10), 0, this, 1, 'CLK')
+        this.rstNode = new Node(snap10(leftX), snap10(midY + 10), 0, this, 1, 'RST')
     }
 
     // -- Save / Load ----------------------------------------------------------
@@ -1142,41 +1143,42 @@ export default class FPGA extends CircuitElement {
         }
     }
 
-    /** Global CLK and RST input stubs below the FPGA. */
+    /** Global CLK and RST input stubs on the left edge. */
     _drawGlobalInputs(ctx, ox, oy) {
         const s = globalScope.scale
         const xx = this.x + ox
         const yy = this.y + oy
 
-        const botEdge = this.hChanY[this.rows] + SB_SIZE / 2
-        const midX = (this.vChanX[0] + this.vChanX[this.cols]) / 2
+        const borderLeft = this.vChanX[0] - SB_SIZE / 2 - 5  // matches FPGA border pad
+        const midY = (this.hChanY[0] + this.hChanY[Math.min(1, this.rows)]) / 2
 
         ctx.strokeStyle = colors['stroke']
         ctx.lineWidth = correctWidth(1)
 
-        // CLK stub
-        const clkX = snap10(midX - 20)
+        // CLK stub (short line from node to FPGA border)
+        const clkY = snap10(midY - 10)
+        const nodeX = this.vChanX[0] - SB_SIZE / 2 - IO_STUB
         ctx.beginPath()
-        ctx.moveTo((xx + clkX) * s + globalScope.ox, (yy + botEdge) * s + globalScope.oy)
-        ctx.lineTo((xx + clkX) * s + globalScope.ox, (yy + botEdge + GLOBAL_STUB) * s + globalScope.oy)
+        ctx.moveTo((xx + nodeX) * s + globalScope.ox, (yy + clkY) * s + globalScope.oy)
+        ctx.lineTo((xx + borderLeft) * s + globalScope.ox, (yy + clkY) * s + globalScope.oy)
         ctx.stroke()
 
         ctx.fillStyle = colors['text']
         ctx.font = `${Math.round(10 * s)}px sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'top'
-        ctx.fillText('CLK', (xx + clkX) * s + globalScope.ox, (yy + botEdge + GLOBAL_STUB + 2) * s + globalScope.oy)
+        ctx.textAlign = 'right'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('CLK', (xx + nodeX - 5) * s + globalScope.ox, (yy + clkY) * s + globalScope.oy)
 
-        // RST stub
-        const rstX = snap10(midX + 20)
+        // RST stub (short line from node to FPGA border)
+        const rstY = snap10(midY + 10)
         ctx.strokeStyle = colors['stroke']
         ctx.beginPath()
-        ctx.moveTo((xx + rstX) * s + globalScope.ox, (yy + botEdge) * s + globalScope.oy)
-        ctx.lineTo((xx + rstX) * s + globalScope.ox, (yy + botEdge + GLOBAL_STUB) * s + globalScope.oy)
+        ctx.moveTo((xx + nodeX) * s + globalScope.ox, (yy + rstY) * s + globalScope.oy)
+        ctx.lineTo((xx + borderLeft) * s + globalScope.ox, (yy + rstY) * s + globalScope.oy)
         ctx.stroke()
 
         ctx.fillStyle = colors['text']
-        ctx.fillText('RST', (xx + rstX) * s + globalScope.ox, (yy + botEdge + GLOBAL_STUB + 2) * s + globalScope.oy)
+        ctx.fillText('RST', (xx + nodeX - 5) * s + globalScope.ox, (yy + rstY) * s + globalScope.oy)
     }
 
     /** Fixed connections between CLB pins and vertical channel wires. */
@@ -1234,6 +1236,15 @@ export default class FPGA extends CircuitElement {
                     ctx.beginPath()
                     ctx.arc(pWx, pPinY, DOT_R * s, 0, 2 * Math.PI)
                     ctx.fill()
+
+                    // Address weight label just outside CLB box
+                    const weight = 1 << (N_INPUTS - 1 - i)  // MSB first: 4, 2, 1
+                    const pClbBoxLeft = (xx + clbCX) * s + globalScope.ox
+                    ctx.fillStyle = colors['text']
+                    ctx.font = `${Math.round(5 * s)}px sans-serif`
+                    ctx.textAlign = 'right'
+                    ctx.textBaseline = 'bottom'
+                    ctx.fillText(weight.toString(), pClbBoxLeft - 2 * s, pPinY - 1 * s)
                 }
 
                 // --- Output: connect to closest wire in right vertical channel ---
