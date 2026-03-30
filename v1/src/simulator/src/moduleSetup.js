@@ -59,11 +59,12 @@ import DFF from './sequential/DFF'
 import TFF from './sequential/TFF'
 import RSFF from './sequential/RSFF'
 import JKFF from './sequential/JKFF'
+import DLatch from './sequential/DLatch'
+import RSLatch from './sequential/RSLatch'
 import PAL from './sequential/PAL'
 import PLA from './sequential/PLA'
 import PLE from './sequential/PLE'
-import DLatch from './sequential/DLatch'
-import RSLatch from './sequential/RSLatch'
+import FPGA from './sequential/FPGA'
 import TB_Input from './testbench/testbenchInput'
 import TB_Output from './testbench/testbenchOutput'
 import verilogMultiplier from './modules/verilogMultiplier'
@@ -143,11 +144,12 @@ export default function setupModules() {
         TFF,
         RSFF,
         JKFF,
+        DLatch,
+        RSLatch,
         PAL,
         PLA,
         PLE,
-        DLatch,
-        RSLatch,
+        FPGA,
     }
     Object.assign(modules, moduleSet)
 }
