@@ -112,6 +112,10 @@ export default class FPGA extends CircuitElement {
         this.ffMasterState = {}       // { "r,c": master latch value }
         this.prevClk = undefined      // previous clock value for edge detection
         this.simErrors = []           // error messages from last resolve
+        this._wireValues = {}         // wire value map from last resolve (for drawing)
+        this._clbAddr = {}            // { "r,c": address } active LUT row per CLB
+        this._clbLutOut = {}          // { "r,c": lutOutput } LUT output per CLB
+        this._clbOut = {}             // { "r,c": clbOutput } final CLB output per CLB
 
         this._initSimState()
         this._buildLayout()
@@ -370,6 +374,12 @@ export default class FPGA extends CircuitElement {
         }
     }
 
+    /** Get theme wire color for a 1-bit value. */
+    _wireColor(val) {
+        if (val === undefined) return colors['color_wire_lose']
+        return val ? colors['color_wire_pow'] : colors['color_wire_con']
+    }
+
     // -- Simulation -----------------------------------------------------------
 
     resolve() {
@@ -527,6 +537,11 @@ export default class FPGA extends CircuitElement {
                     // Output MUX: 0=combinatorial (LUT out), 1=registered (FF Q)
                     const clbOut = this.muxSel[key] === 1 ? this.ffState[key] : lutOut
 
+                    // Store for drawing
+                    this._clbAddr[key] = allDefined ? addr : undefined
+                    this._clbLutOut[key] = lutOut
+                    this._clbOut[key] = clbOut
+
                     // Drive CLB output onto vertical wire
                     const outWire = `v:${vi_out}:0:${r}`
                     const oldOut = getWire(outWire)
@@ -537,6 +552,9 @@ export default class FPGA extends CircuitElement {
                 }
             }
         }
+
+        // Store wire values for drawing
+        this._wireValues = wires
 
         // Update clock edge detection
         this.prevClk = clkVal
@@ -828,10 +846,18 @@ export default class FPGA extends CircuitElement {
                     const from = this._sbPortPos(vi, inPort)
                     const to = this._sbPortPos(vi, outPort)
 
-                    // Highlight the active port's connection in blue
+                    // Color by wire value, or blue if actively selected
                     const isSelectedConn = isActive && this.activePort === outPort.name
-                    ctx.strokeStyle = isSelectedConn ? '#0066cc' : colors['stroke']
-                    ctx.lineWidth = correctWidth(isSelectedConn ? 2 : 1)
+                    const inWireId = this._portToWire(vi, hi, inPort, 'in')
+                    const connVal = inWireId ? this._wireValues[inWireId] : undefined
+                    if (isSelectedConn) {
+                        ctx.strokeStyle = '#0066cc'
+                    } else if (connVal !== undefined) {
+                        ctx.strokeStyle = this._wireColor(connVal)
+                    } else {
+                        ctx.strokeStyle = colors['stroke']
+                    }
+                    ctx.lineWidth = correctWidth(isSelectedConn || connVal !== undefined ? 2 : 1)
 
                     const fx = sbCx + from.x * s
                     const fy = sbCy + from.y * s
@@ -1005,6 +1031,7 @@ export default class FPGA extends CircuitElement {
         const nRows = N_LUT_ENTRIES
         const x0 = px + LUT_X * s
         const y0 = py + LUT_Y * s
+        const activeRow = this._clbAddr[key]  // currently addressed row (or undefined)
 
         // "LUT" label
         ctx.fillStyle = colors['text']
@@ -1015,11 +1042,17 @@ export default class FPGA extends CircuitElement {
 
         for (let i = 0; i < nRows; i++) {
             const ry = y0 + i * LUT_ROW_H * s
+            const isActive = activeRow === i
 
-            // Address cell
+            // Address cell — highlight active row with output wire color
             ctx.strokeStyle = colors['stroke']
             ctx.lineWidth = correctWidth(0.5)
-            ctx.fillStyle = colors['fill']
+            if (isActive) {
+                const lutOut = this._clbLutOut[key]
+                ctx.fillStyle = this._wireColor(lutOut) + '40'  // semi-transparent
+            } else {
+                ctx.fillStyle = colors['fill']
+            }
             ctx.fillRect(x0, ry, LUT_ADDR_W * s, LUT_ROW_H * s)
             ctx.strokeRect(x0, ry, LUT_ADDR_W * s, LUT_ROW_H * s)
 
@@ -1034,10 +1067,17 @@ export default class FPGA extends CircuitElement {
                 ry + (LUT_ROW_H / 2) * s
             )
 
-            // Bit cell (clickable)
+            // Bit cell (clickable) — also highlight if active
             const bx = x0 + LUT_ADDR_W * s
             const isHover = hover && hover.type === 'lut' && hover.key === key && hover.bit === i
-            ctx.fillStyle = isHover ? colors['hover_select'] : colors['fill']
+            if (isHover) {
+                ctx.fillStyle = colors['hover_select']
+            } else if (isActive) {
+                const lutOut = this._clbLutOut[key]
+                ctx.fillStyle = this._wireColor(lutOut) + '40'
+            } else {
+                ctx.fillStyle = colors['fill']
+            }
             ctx.fillRect(bx, ry, LUT_BIT_W * s, LUT_ROW_H * s)
             ctx.strokeRect(bx, ry, LUT_BIT_W * s, LUT_ROW_H * s)
 
@@ -1458,7 +1498,12 @@ export default class FPGA extends CircuitElement {
                     const pinY = clbCY + inY[i]
                     const clbLeft = clbCX + LUT_X  // LUT left edge
 
-                    // Horizontal line from wire to LUT left edge
+                    // Horizontal line from wire to LUT left edge (colored by value)
+                    const inWireId = `v:${vi_in}:${wireIdx}:${r}`
+                    const inVal = this._wireValues[inWireId]
+                    ctx.strokeStyle = inVal !== undefined ? this._wireColor(inVal) : colors['stroke']
+                    ctx.lineWidth = correctWidth(inVal !== undefined ? 1 : 0.5)
+
                     const pWx = (xx + wx) * s + globalScope.ox
                     const pPinY = (yy + pinY) * s + globalScope.oy
                     const pClbLeft = (xx + clbLeft) * s + globalScope.ox
@@ -1468,7 +1513,7 @@ export default class FPGA extends CircuitElement {
                     ctx.stroke()
 
                     // Connection dot on the vertical wire
-                    ctx.fillStyle = colors['stroke']
+                    ctx.fillStyle = inVal !== undefined ? this._wireColor(inVal) : colors['stroke']
                     ctx.beginPath()
                     ctx.arc(pWx, pPinY, DOT_R * s, 0, 2 * Math.PI)
                     ctx.fill()
@@ -1493,17 +1538,21 @@ export default class FPGA extends CircuitElement {
                 const outPinY = clbCY + outY
                 const clbRight = clbCX + CLB_W  // CLB right edge
 
+                const outWireId = `v:${vi_out}:0:${r}`
+                const outVal = this._wireValues[outWireId]
+                ctx.strokeStyle = outVal !== undefined ? this._wireColor(outVal) : colors['stroke']
+                ctx.lineWidth = correctWidth(outVal !== undefined ? 1 : 0.5)
+
                 const pOutWx = (xx + outWx) * s + globalScope.ox
                 const pOutPinY = (yy + outPinY) * s + globalScope.oy
                 const pClbRight = (xx + clbRight) * s + globalScope.ox
-                ctx.strokeStyle = colors['stroke']
                 ctx.beginPath()
                 ctx.moveTo(pClbRight, pOutPinY)
                 ctx.lineTo(pOutWx, pOutPinY)
                 ctx.stroke()
 
                 // Connection dot on the vertical wire
-                ctx.fillStyle = colors['stroke']
+                ctx.fillStyle = outVal !== undefined ? this._wireColor(outVal) : colors['stroke']
                 ctx.beginPath()
                 ctx.arc(pOutWx, pOutPinY, DOT_R * s, 0, 2 * Math.PI)
                 ctx.fill()
@@ -1518,9 +1567,6 @@ export default class FPGA extends CircuitElement {
         const yy = this.y + oy
         const halfSB = SB_SIZE / 2
 
-        ctx.strokeStyle = colors['stroke']
-        ctx.lineWidth = correctWidth(0.5)
-
         for (let vi = 0; vi <= this.cols; vi++) {
             const nw = this._vWireCount(vi)
             const bw = (nw - 1) * WIRE_PITCH
@@ -1529,6 +1575,11 @@ export default class FPGA extends CircuitElement {
             for (let w = 0; w < nw; w++) {
                 const wx = baseX + w * WIRE_PITCH
                 for (let hi = 0; hi < this.rows; hi++) {
+                    const wireId = `v:${vi}:${w}:${hi}`
+                    const val = this._wireValues[wireId]
+                    ctx.strokeStyle = val !== undefined ? this._wireColor(val) : colors['stroke']
+                    ctx.lineWidth = correctWidth(val !== undefined ? 1 : 0.5)
+
                     const y1 = this.hChanY[hi] + halfSB
                     const y2 = this.hChanY[hi + 1] - halfSB
                     const px = (xx + wx) * s + globalScope.ox
@@ -1551,14 +1602,16 @@ export default class FPGA extends CircuitElement {
         const halfSB = SB_SIZE / 2
         const bw = (H_WIRE_COUNT - 1) * WIRE_PITCH
 
-        ctx.strokeStyle = colors['stroke']
-        ctx.lineWidth = correctWidth(0.5)
-
         for (let hi = 0; hi <= this.rows; hi++) {
             const baseY = this.hChanY[hi] - bw / 2
             for (let w = 0; w < H_WIRE_COUNT; w++) {
                 const wy = baseY + w * WIRE_PITCH
                 for (let vi = 0; vi < this.cols; vi++) {
+                    const wireId = `h:${hi}:${w}:${vi}`
+                    const val = this._wireValues[wireId]
+                    ctx.strokeStyle = val !== undefined ? this._wireColor(val) : colors['stroke']
+                    ctx.lineWidth = correctWidth(val !== undefined ? 1 : 0.5)
+
                     const x1 = this.vChanX[vi] + halfSB
                     const x2 = this.vChanX[vi + 1] - halfSB
                     const py = (yy + wy) * s + globalScope.oy
