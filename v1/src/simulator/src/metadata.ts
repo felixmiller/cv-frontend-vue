@@ -65,11 +65,12 @@ export const circuitElementList = [
     "TFF",
     "RSFF",
     "JKFF",
+    "DLatch",
+    "RSLatch",
     "PAL",
     "PLA",
     "PLE",
-    "DLatch",
-    "RSLatch"
+    "FPGA"
 ]
 const annotationList = ["Text", "Rectangle", "Arrow", "ImageAnnotation"]
 export const moduleList = [...circuitElementList, ...annotationList]
@@ -179,17 +180,18 @@ export const elementHierarchy: Record<string, NameLabel[]> = {
         { name: "EEPROM", label: "EEPROM" }
     ],
     "Sequential (HM)": [
-        { name: "DFF", label: "D Flip Flop" },
-        { name: "TFF", label: "T Flip Flop" },
-        { name: "RSFF", label: "RS Flip Flop" },
-        { name: "JKFF", label: "JK Flip Flop" },
-        { name: "DLatch", label: "D Latch" },
+        { name: "DFF",    label: "D Flip Flop" },
+        { name: "TFF",    label: "T Flip Flop" },
+        { name: "RSFF",   label: "RS Flip Flop" },
+        { name: "JKFF",   label: "JK Flip Flop" },
+        { name: "DLatch",  label: "D Latch" },
         { name: "RSLatch", label: "RS Latch" }
     ],
     "Programmable Logic (HM)": [
         { name: "PAL", label: "PAL" },
         { name: "PLA", label: "PLA" },
-        { name: "PLE", label: "PLE/ROM" }
+        { name: "PLE", label: "PLE/ROM" },
+        { name: "FPGA", label: "FPGA" }
     ],
     "Annotation": [
         { name: "Rectangle", label: "Rectangle" },
