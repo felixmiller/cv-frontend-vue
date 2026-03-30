@@ -258,17 +258,23 @@ export default class FPGA extends CircuitElement {
      * Get the pixel position of a port within the SB box.
      * Returns { x, y } relative to SB center, in circuit units.
      */
-    _sbPortPos(vi, port) {
+    _sbPortPos(vi, hi, port) {
         const half = SB_SIZE / 2
         const nv = this._vWireCount(vi)
         const vBw = (nv - 1) * WIRE_PITCH
         const hBw = (H_WIRE_COUNT - 1) * WIRE_PITCH
         const isLeft = vi === 0
         const isRight = vi === this.cols
+        const isTop = hi === 0
+        const isBot = hi === this.rows
 
         if (port.side === 'T' || port.side === 'B') {
-            const x = -vBw / 2 + port.wireIdx * WIRE_PITCH
             const y = port.side === 'T' ? -half : half
+            // Edge SBs with single T/B I/O port: center it
+            if ((isTop && port.side === 'T') || (isBot && port.side === 'B')) {
+                return { x: 0, y }
+            }
+            const x = -vBw / 2 + port.wireIdx * WIRE_PITCH
             return { x, y }
         } else {
             const x = port.side === 'L' ? -half : half
@@ -300,9 +306,9 @@ export default class FPGA extends CircuitElement {
         for (let c = 0; c <= cols; c++) {
             this.vChanX.push(snap10(x))
             if (c < cols) {
-                const clbLeft = x + SB_SIZE / 2 + CH_GAP - 20
+                const clbLeft = x + SB_SIZE / 2 + CH_GAP - 10
                 this.clbX.push(snap10(clbLeft))
-                x = clbLeft + CLB_W + CH_GAP + 20
+                x = clbLeft + CLB_W + CH_GAP + 10
             }
         }
 
@@ -361,17 +367,19 @@ export default class FPGA extends CircuitElement {
         }
 
         // I/O nodes on top (inputs) and bottom (outputs) edges, non-corner SBs only
+        // Numbering continues from left/right: IN{rows+1}..., OUT{rows+1}...
         this.ioNodesTop = []
         this.ioNodesBot = []
         for (let vi = 1; vi < this.cols; vi++) {
             const nx = this.offsetX + this.vChanX[vi]
             const topY = this.offsetY + this.hChanY[0] - SB_SIZE / 2 - IO_STUB
             const botY = this.offsetY + this.hChanY[this.rows] + SB_SIZE / 2 + IO_STUB
+            const idx = this.rows + 1 + (vi - 1)
             this.ioNodesTop.push(
-                new Node(snap10(nx), snap10(topY), 0, this, 1, `TIN${vi}`)
+                new Node(snap10(nx), snap10(topY), 0, this, 1, `IN${idx}`)
             )
             this.ioNodesBot.push(
-                new Node(snap10(nx), snap10(botY), 1, this, 1, `BOUT${vi}`)
+                new Node(snap10(nx), snap10(botY), 1, this, 1, `OUT${idx}`)
             )
         }
 
@@ -448,7 +456,8 @@ export default class FPGA extends CircuitElement {
         for (let i = 0; i < this.ioNodesTop.length; i++) {
             const vi = i + 1  // ioNodesTop[0] corresponds to vi=1
             const val = this.ioNodesTop[i].value
-            setWire(`io:top:${vi}`, val !== undefined ? val : undefined, `TIN${vi}`)
+            const idx = this.rows + 1 + i
+            setWire(`io:top:${vi}`, val !== undefined ? val : undefined, `IN${idx}`)
         }
 
         // CLK and RST global signals
@@ -755,7 +764,7 @@ export default class FPGA extends CircuitElement {
         const hitR = 5  // hit radius for ports
 
         for (const port of all) {
-            const pos = this._sbPortPos(vi, port)
+            const pos = this._sbPortPos(vi, hi, port)
             const px = cx + pos.x
             const py = cy + pos.y
             if (Math.abs(mx - px) <= hitR && Math.abs(my - py) <= hitR) {
@@ -895,8 +904,8 @@ export default class FPGA extends CircuitElement {
                     if (!selIdx || selIdx === 0) continue  // n.c.
                     const inPort = inputs[selIdx - 1]
                     if (!inPort) continue
-                    const from = this._sbPortPos(vi, inPort)
-                    const to = this._sbPortPos(vi, outPort)
+                    const from = this._sbPortPos(vi, hi, inPort)
+                    const to = this._sbPortPos(vi, hi, outPort)
 
                     // Color by wire value, or blue if actively selected
                     const isSelectedConn = isActive && this.activePort === outPort.name
@@ -946,7 +955,7 @@ export default class FPGA extends CircuitElement {
                     const portR = 3 * s
 
                     for (const port of all) {
-                        const pos = this._sbPortPos(vi, port)
+                        const pos = this._sbPortPos(vi, hi, port)
                         const px = sbCx + pos.x * s
                         const py = sbCy + pos.y * s
 
@@ -1015,7 +1024,7 @@ export default class FPGA extends CircuitElement {
                 const { all } = this._sbPorts(vi, hi)
 
                 for (const port of all) {
-                    const pos = this._sbPortPos(vi, port)
+                    const pos = this._sbPortPos(vi, hi, port)
                     const wx = (xx + cx + pos.x) * s + globalScope.ox
                     const wy = (yy + cy + pos.y) * s + globalScope.oy
 
@@ -1774,12 +1783,13 @@ export default class FPGA extends CircuitElement {
             ctx.stroke()
 
             // Top label
+            const idx = this.rows + 1 + (vi - 1)
             ctx.fillStyle = colors['text']
             ctx.font = `${Math.round(8 * s)}px sans-serif`
             ctx.textAlign = 'left'
             ctx.textBaseline = 'bottom'
             ctx.fillText(
-                `TIN${vi}`,
+                `IN${idx}`,
                 (xx + cx + 5) * s + globalScope.ox,
                 (yy + borderT - 5) * s + globalScope.oy
             )
@@ -1799,7 +1809,7 @@ export default class FPGA extends CircuitElement {
             ctx.textAlign = 'left'
             ctx.textBaseline = 'top'
             ctx.fillText(
-                `BOUT${vi}`,
+                `OUT${idx}`,
                 (xx + cx + 5) * s + globalScope.ox,
                 (yy + borderB + 5) * s + globalScope.oy
             )
