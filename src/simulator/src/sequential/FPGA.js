@@ -22,7 +22,7 @@ const N_INPUTS = 3                 // LUT inputs (fixed for now)
 const N_LUT_ENTRIES = 1 << N_INPUTS  // 8
 const CLB_W = 140                  // CLB box width
 const CLB_H = 110                  // CLB box height
-const SB_SIZE = 40                 // switch box size
+const SB_SIZE = 60                 // switch box size
 const H_WIRE_COUNT = 4             // horizontal wires per channel
 const WIRE_PITCH = 10              // spacing between parallel wires
 const CH_GAP = 30                  // gap between channel edge and CLB box
@@ -69,8 +69,6 @@ const CLB_RST_Y = 104              // RST input Y within CLB
 const CLR_MUX_Y = CLB_RST_Y - RC_MUX_H * 0.75  // input 1 aligns with RST line
 const CLR_SRAM_Y = CLR_MUX_Y - 2 - RC_SRAM_SIZE  // SRAM sits just above mux
 
-// Global signal inputs
-const GLOBAL_STUB = 20             // stub length for CLK/RST labels
 
 /** Round to nearest 10 (canvas grid). */
 const snap10 = v => Math.round(v / 10) * 10
@@ -191,18 +189,24 @@ export default class FPGA extends CircuitElement {
             return false
         }
 
-        // Top vertical ports (skip if at top edge)
+        // Top vertical ports
         if (!isTop) {
             for (let w = 0; w < nv; w++) {
                 ports.push({ name: `T${w}`, side: 'T', wireIdx: w, isOutput: vWireIsOutput(w, 'T') })
             }
+        } else if (!isLeft && !isRight) {
+            // Top edge, non-corner: single I/O input port
+            ports.push({ name: 'T0', side: 'T', wireIdx: 0, isOutput: false })
         }
 
-        // Bottom vertical ports (skip if at bottom edge)
+        // Bottom vertical ports
         if (!isBot) {
             for (let w = 0; w < nv; w++) {
                 ports.push({ name: `B${w}`, side: 'B', wireIdx: w, isOutput: vWireIsOutput(w, 'B') })
             }
+        } else if (!isLeft && !isRight) {
+            // Bottom edge, non-corner: single I/O output port
+            ports.push({ name: 'B0', side: 'B', wireIdx: 0, isOutput: true })
         }
 
         // Left horizontal ports
@@ -296,9 +300,9 @@ export default class FPGA extends CircuitElement {
         for (let c = 0; c <= cols; c++) {
             this.vChanX.push(snap10(x))
             if (c < cols) {
-                const clbLeft = x + SB_SIZE / 2 + CH_GAP - 10
+                const clbLeft = x + SB_SIZE / 2 + CH_GAP - 20
                 this.clbX.push(snap10(clbLeft))
-                x = clbLeft + CLB_W + CH_GAP + 10
+                x = clbLeft + CLB_W + CH_GAP + 20
             }
         }
 
@@ -309,7 +313,7 @@ export default class FPGA extends CircuitElement {
         for (let r = 0; r <= rows; r++) {
             this.hChanY.push(snap10(yPos))
             if (r < rows) {
-                const clbTop = yPos + SB_SIZE / 2 + CH_GAP - 20
+                const clbTop = yPos + SB_SIZE / 2 + CH_GAP - 30
                 this.clbY.push(snap10(clbTop))
                 yPos = clbTop + CLB_H + CH_GAP
             }
@@ -324,8 +328,8 @@ export default class FPGA extends CircuitElement {
         // Bounding box for hit-testing
         this.leftDimensionX = -this.offsetX + IO_STUB + 20
         this.rightDimensionX = totalW + this.offsetX + IO_STUB + 20
-        this.upDimensionY = -this.offsetY + 20
-        this.downDimensionY = totalH + this.offsetY + GLOBAL_STUB + 40
+        this.upDimensionY = -this.offsetY + IO_STUB + 20
+        this.downDimensionY = totalH + this.offsetY + IO_STUB + 40
     }
 
     /** Number of vertical wires in channel vi. */
@@ -356,6 +360,21 @@ export default class FPGA extends CircuitElement {
             )
         }
 
+        // I/O nodes on top (inputs) and bottom (outputs) edges, non-corner SBs only
+        this.ioNodesTop = []
+        this.ioNodesBot = []
+        for (let vi = 1; vi < this.cols; vi++) {
+            const nx = this.offsetX + this.vChanX[vi]
+            const topY = this.offsetY + this.hChanY[0] - SB_SIZE / 2 - IO_STUB
+            const botY = this.offsetY + this.hChanY[this.rows] + SB_SIZE / 2 + IO_STUB
+            this.ioNodesTop.push(
+                new Node(snap10(nx), snap10(topY), 0, this, 1, `TIN${vi}`)
+            )
+            this.ioNodesBot.push(
+                new Node(snap10(nx), snap10(botY), 1, this, 1, `BOUT${vi}`)
+            )
+        }
+
         // Global CLK and RST inputs on left edge, between IN0 and IN1
         // Same X as I/O nodes (no extra border pad offset)
         const leftX = this.offsetX + this.vChanX[0] - SB_SIZE / 2 - IO_STUB
@@ -377,6 +396,8 @@ export default class FPGA extends CircuitElement {
             nodes: {
                 ioNodesLeft: this.ioNodesLeft.map(findNode),
                 ioNodesRight: this.ioNodesRight.map(findNode),
+                ioNodesTop: this.ioNodesTop.map(findNode),
+                ioNodesBot: this.ioNodesBot.map(findNode),
                 clkNode: findNode(this.clkNode),
                 rstNode: findNode(this.rstNode),
             },
@@ -421,6 +442,13 @@ export default class FPGA extends CircuitElement {
         for (let hi = 0; hi <= this.rows; hi++) {
             const val = this.ioNodesLeft[hi].value
             setWire(`io:left:${hi}`, val !== undefined ? val : undefined, `IN${hi}`)
+        }
+
+        // Top I/O inputs (non-corner interior SBs)
+        for (let i = 0; i < this.ioNodesTop.length; i++) {
+            const vi = i + 1  // ioNodesTop[0] corresponds to vi=1
+            const val = this.ioNodesTop[i].value
+            setWire(`io:top:${vi}`, val !== undefined ? val : undefined, `TIN${vi}`)
         }
 
         // CLK and RST global signals
@@ -574,13 +602,22 @@ export default class FPGA extends CircuitElement {
 
         // -- 3. Write output nodes --
         for (let hi = 0; hi <= this.rows; hi++) {
-            // Right I/O reads from the right-edge SB's R0 output
-            // That output is driven by SB mux routing — check the wire
             const outWire = `io:right:${hi}`
             const val = getWire(outWire)
             if (this.ioNodesRight[hi].value !== val) {
                 this.ioNodesRight[hi].value = val !== undefined ? val : undefined
                 simulationArea.simulationQueue.add(this.ioNodesRight[hi])
+            }
+        }
+
+        // Bottom I/O outputs (non-corner interior SBs)
+        for (let i = 0; i < this.ioNodesBot.length; i++) {
+            const vi = i + 1
+            const outWire = `io:bot:${vi}`
+            const val = getWire(outWire)
+            if (this.ioNodesBot[i].value !== val) {
+                this.ioNodesBot[i].value = val !== undefined ? val : undefined
+                simulationArea.simulationQueue.add(this.ioNodesBot[i])
             }
         }
     }
@@ -594,13 +631,19 @@ export default class FPGA extends CircuitElement {
         const isRight = vi === this.cols
 
         if (port.side === 'T') {
-            // Top port: vertical wire in channel vi, segment above (between hi-1 and hi)
-            if (hi === 0) return null
+            if (hi === 0) {
+                // Top edge: connects to I/O input (non-corner only)
+                const isCorner = vi === 0 || vi === this.cols
+                return isCorner ? null : `io:top:${vi}`
+            }
             return `v:${vi}:${port.wireIdx}:${hi - 1}`
         }
         if (port.side === 'B') {
-            // Bottom port: vertical wire in channel vi, segment below (between hi and hi+1)
-            if (hi >= this.rows) return null
+            if (hi >= this.rows) {
+                // Bottom edge: connects to I/O output (non-corner only)
+                const isCorner = vi === 0 || vi === this.cols
+                return isCorner ? null : `io:bot:${vi}`
+            }
             return `v:${vi}:${port.wireIdx}:${hi}`
         }
         if (port.side === 'L') {
@@ -1476,10 +1519,10 @@ export default class FPGA extends CircuitElement {
         ctx.stroke()
 
         ctx.fillStyle = colors['text']
-        ctx.font = `${Math.round(10 * s)}px sans-serif`
+        ctx.font = `${Math.round(8 * s)}px sans-serif`
         ctx.textAlign = 'right'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('CLK', (xx + nodeX - 5) * s + globalScope.ox, (yy + clkY) * s + globalScope.oy)
+        ctx.textBaseline = 'bottom'
+        ctx.fillText('CLK', (xx + borderLeft - 5) * s + globalScope.ox, (yy + clkY) * s + globalScope.oy - 2 * s)
 
         // RST stub (short line from node to FPGA border)
         const rstY = snap10(midY + 10)
@@ -1490,7 +1533,7 @@ export default class FPGA extends CircuitElement {
         ctx.stroke()
 
         ctx.fillStyle = colors['text']
-        ctx.fillText('RST', (xx + nodeX - 5) * s + globalScope.ox, (yy + rstY) * s + globalScope.oy)
+        ctx.fillText('RST', (xx + borderLeft - 5) * s + globalScope.ox, (yy + rstY) * s + globalScope.oy - 2 * s)
     }
 
     /** Fixed connections between CLB pins and vertical channel wires. */
@@ -1691,23 +1734,74 @@ export default class FPGA extends CircuitElement {
             ctx.lineTo((xx + rx2) * s + globalScope.ox, (yy + cy) * s + globalScope.oy)
             ctx.stroke()
 
-            // Pin labels
+            // Pin labels (above the wire, just outside the FPGA border)
             ctx.fillStyle = colors['text']
-            ctx.textBaseline = 'middle'
-            const fontSize = Math.round(10 * s)
+            ctx.textBaseline = 'bottom'
+            const fontSize = Math.round(8 * s)
             ctx.font = `${fontSize}px sans-serif`
+            const labelOffY = -2 * s
 
+            const borderL = this.vChanX[0] - halfSB - 5
+            const borderR = this.vChanX[this.cols] + halfSB + 5
             ctx.textAlign = 'right'
             ctx.fillText(
                 `IN${hi}`,
-                (xx + lx1 - 5) * s + globalScope.ox,
-                (yy + cy) * s + globalScope.oy
+                (xx + borderL - 5) * s + globalScope.ox,
+                (yy + cy) * s + globalScope.oy + labelOffY
             )
             ctx.textAlign = 'left'
             ctx.fillText(
                 `OUT${hi}`,
-                (xx + rx2 + 5) * s + globalScope.ox,
-                (yy + cy) * s + globalScope.oy
+                (xx + borderR + 5) * s + globalScope.ox,
+                (yy + cy) * s + globalScope.oy + labelOffY
+            )
+        }
+
+        // Top and bottom stubs (non-corner interior SBs)
+        const borderT = this.hChanY[0] - halfSB - 5
+        const borderB = this.hChanY[this.rows] + halfSB + 5
+        for (let vi = 1; vi < this.cols; vi++) {
+            const cx = this.vChanX[vi]
+
+            // Top stub (input)
+            const ty1 = this.hChanY[0] - halfSB - IO_STUB
+            const ty2 = this.hChanY[0] - halfSB
+            ctx.strokeStyle = colors['stroke']
+            ctx.lineWidth = correctWidth(1)
+            ctx.beginPath()
+            ctx.moveTo((xx + cx) * s + globalScope.ox, (yy + ty1) * s + globalScope.oy)
+            ctx.lineTo((xx + cx) * s + globalScope.ox, (yy + ty2) * s + globalScope.oy)
+            ctx.stroke()
+
+            // Top label
+            ctx.fillStyle = colors['text']
+            ctx.font = `${Math.round(8 * s)}px sans-serif`
+            ctx.textAlign = 'left'
+            ctx.textBaseline = 'bottom'
+            ctx.fillText(
+                `TIN${vi}`,
+                (xx + cx + 5) * s + globalScope.ox,
+                (yy + borderT - 5) * s + globalScope.oy
+            )
+
+            // Bottom stub (output)
+            const by1 = this.hChanY[this.rows] + halfSB
+            const by2 = by1 + IO_STUB
+            ctx.strokeStyle = colors['stroke']
+            ctx.lineWidth = correctWidth(1)
+            ctx.beginPath()
+            ctx.moveTo((xx + cx) * s + globalScope.ox, (yy + by1) * s + globalScope.oy)
+            ctx.lineTo((xx + cx) * s + globalScope.ox, (yy + by2) * s + globalScope.oy)
+            ctx.stroke()
+
+            // Bottom label
+            ctx.fillStyle = colors['text']
+            ctx.textAlign = 'left'
+            ctx.textBaseline = 'top'
+            ctx.fillText(
+                `BOUT${vi}`,
+                (xx + cx + 5) * s + globalScope.ox,
+                (yy + borderB + 5) * s + globalScope.oy
             )
         }
     }
