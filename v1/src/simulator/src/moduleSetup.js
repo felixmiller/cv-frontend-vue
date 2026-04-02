@@ -65,6 +65,8 @@ import PAL from './sequential/PAL'
 import PLA from './sequential/PLA'
 import PLE from './sequential/PLE'
 import FPGA from './sequential/FPGA'
+import HmROM from './sequential/HmROM'
+import HmRAM from './sequential/HmRAM'
 import TB_Input from './testbench/testbenchInput'
 import TB_Output from './testbench/testbenchOutput'
 import verilogMultiplier from './modules/verilogMultiplier'
@@ -150,6 +152,8 @@ export default function setupModules() {
         PLA,
         PLE,
         FPGA,
+        HmROM,
+        HmRAM,
     }
     Object.assign(modules, moduleSet)
 }

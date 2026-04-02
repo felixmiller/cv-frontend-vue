@@ -84,6 +84,9 @@
                     "Gates": "Gates",
                     "Decoders & Plexers": "Decoders & Plexers",
                     "Sequential Elements": "Sequential Elements",
+                    "Sequential (HM)": "Sequential (HM)",
+                    "Programmable Logic (HM)": "Programmable Logic (HM)",
+                    "Memories (HM)": "Memories (HM)",
                     "Annotation": "Annotation",
                     "Misc": "Misc"
                 }
