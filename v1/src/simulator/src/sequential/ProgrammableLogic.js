@@ -292,17 +292,20 @@ export default class ProgrammableLogic extends CircuitElement {
         for (let i = 0; i < this.inputs; i++) {
             const trueX = this.gridLeftX + (2 * i) * CELL
             const compX = this.gridLeftX + (2 * i + 1) * CELL
-
-            ctx.strokeStyle = colors['stroke']
-            ctx.lineWidth = correctWidth(1)
+            const trueVal = this._inputLines ? this._inputLines[2 * i] : undefined
+            const compVal = this._inputLines ? this._inputLines[2 * i + 1] : undefined
 
             // Non-inverted: straight vertical from input node down through grid
+            ctx.strokeStyle = trueVal !== undefined ? this._wireColor(trueVal) : colors['stroke']
+            ctx.lineWidth = correctWidth(trueVal !== undefined ? 2 : 1)
             ctx.beginPath()
             moveTo(ctx, trueX, this.boxTop, xx, yy, 'RIGHT')
             lineTo(ctx, trueX, this.gridBotY + 5, xx, yy, 'RIGHT')
             ctx.stroke()
 
             // Branch right from non-inverted line at branchY
+            ctx.strokeStyle = trueVal !== undefined ? this._wireColor(trueVal) : colors['stroke']
+            ctx.lineWidth = correctWidth(trueVal !== undefined ? 2 : 1)
             ctx.beginPath()
             moveTo(ctx, trueX, branchY, xx, yy, 'RIGHT')
             lineTo(ctx, compX, branchY, xx, yy, 'RIGHT')
@@ -311,6 +314,8 @@ export default class ProgrammableLogic extends CircuitElement {
             ctx.stroke()
 
             // Inverter box
+            ctx.strokeStyle = colors['stroke']
+            ctx.lineWidth = correctWidth(1)
             ctx.fillStyle = colors['fill']
             ctx.beginPath()
             rect2(ctx, compX - invBw / 2, invY - invBh / 2, invBw, invBh, xx, yy, 'RIGHT')
@@ -324,11 +329,15 @@ export default class ProgrammableLogic extends CircuitElement {
             // Inversion bubble below box
             ctx.beginPath()
             ctx.fillStyle = colors['fill']
+            ctx.strokeStyle = colors['stroke']
+            ctx.lineWidth = correctWidth(1)
             drawCircle2(ctx, compX, invY + invBh / 2 + invR, invR, xx, yy, 'RIGHT')
             ctx.fill()
             ctx.stroke()
 
             // Complement line from below inversion bubble down through grid
+            ctx.strokeStyle = compVal !== undefined ? this._wireColor(compVal) : colors['stroke']
+            ctx.lineWidth = correctWidth(compVal !== undefined ? 2 : 1)
             ctx.beginPath()
             moveTo(ctx, compX, invY + invBh / 2 + invR * 2, xx, yy, 'RIGHT')
             lineTo(ctx, compX, this.gridBotY + 5, xx, yy, 'RIGHT')
@@ -338,9 +347,10 @@ export default class ProgrammableLogic extends CircuitElement {
 
     /** Horizontal product term lines — full width with 5px overshoot on each side */
     _drawHorizontalLines(ctx, xx, yy) {
-        ctx.strokeStyle = '#aaa'
-        ctx.lineWidth = correctWidth(1)
         for (let r = 0; r < this.productTerms; r++) {
+            const andVal = this._andOutputs ? this._andOutputs[r] : undefined
+            ctx.strokeStyle = andVal !== undefined ? this._wireColor(andVal) : '#aaa'
+            ctx.lineWidth = correctWidth(andVal !== undefined ? 2 : 1)
             const y = this.gridTopY + r * CELL
             ctx.beginPath()
             moveTo(ctx, this.gridLeftX - 5, y, xx, yy, 'RIGHT')
@@ -351,9 +361,10 @@ export default class ProgrammableLogic extends CircuitElement {
 
     /** OR section: vertical output lines (5px overshoot at top) */
     _drawOutputVerticals(ctx, xx, yy) {
-        ctx.strokeStyle = '#aaa'
-        ctx.lineWidth = correctWidth(1)
         for (let o = 0; o < this.outputs; o++) {
+            const orVal = this._orOutputs ? this._orOutputs[o] : undefined
+            ctx.strokeStyle = orVal !== undefined ? this._wireColor(orVal) : '#aaa'
+            ctx.lineWidth = correctWidth(orVal !== undefined ? 2 : 1)
             const x = this.orLeftX + o * CELL
             ctx.beginPath()
             moveTo(ctx, x, this.gridTopY - 5, xx, yy, 'RIGHT')
@@ -423,10 +434,11 @@ export default class ProgrammableLogic extends CircuitElement {
         for (let o = 0; o < this.outputs; o++) {
             const gx = this.orLeftX + o * CELL
             const gy = this.orGateY
+            const orVal = this._orOutputs ? this._orOutputs[o] : undefined
 
             // Stub line from bottom of output vertical to OR gate
-            ctx.strokeStyle = '#aaa'
-            ctx.lineWidth = correctWidth(1)
+            ctx.strokeStyle = orVal !== undefined ? this._wireColor(orVal) : '#aaa'
+            ctx.lineWidth = correctWidth(orVal !== undefined ? 2 : 1)
             ctx.beginPath()
             moveTo(ctx, gx, this.gridBotY, xx, yy, 'RIGHT')
             lineTo(ctx, gx, gy - gh / 2, xx, yy, 'RIGHT')
@@ -460,8 +472,9 @@ export default class ProgrammableLogic extends CircuitElement {
             const tx = gx + toggleOffX  // toggle box center x
 
             // Stub line from OR gate straight down into XOR gate
-            ctx.strokeStyle = colors['stroke']
-            ctx.lineWidth = correctWidth(1)
+            const orVal = this._orOutputs ? this._orOutputs[o] : undefined
+            ctx.strokeStyle = orVal !== undefined ? this._wireColor(orVal) : colors['stroke']
+            ctx.lineWidth = correctWidth(orVal !== undefined ? 2 : 1)
             ctx.beginPath()
             moveTo(ctx, gx, this.orGateY + gh / 2, xx, yy, 'RIGHT')
             lineTo(ctx, gx, gy - gh / 2, xx, yy, 'RIGHT')
@@ -507,9 +520,10 @@ export default class ProgrammableLogic extends CircuitElement {
     /** Lines from last gate row down to output nodes */
     _drawOutputLines(ctx, xx, yy) {
         const lastGateY = this.hasInverters ? this.xorGateY : this.orGateY
-        ctx.strokeStyle = colors['stroke']
-        ctx.lineWidth = correctWidth(1)
         for (let o = 0; o < this.outputs; o++) {
+            const outVal = this.outputNodes[o] ? this.outputNodes[o].value : undefined
+            ctx.strokeStyle = outVal !== undefined ? this._wireColor(outVal) : colors['stroke']
+            ctx.lineWidth = correctWidth(outVal !== undefined ? 2 : 1)
             const x = this.orLeftX + o * CELL
             ctx.beginPath()
             moveTo(ctx, x, lastGateY + 7, xx, yy, 'RIGHT')
@@ -525,6 +539,12 @@ export default class ProgrammableLogic extends CircuitElement {
             if (this.inputNodes[i].value === undefined) return false
         }
         return true
+    }
+
+    /** Get theme wire color for a 1-bit value. */
+    _wireColor(val) {
+        if (val === undefined) return colors['color_wire_lose']
+        return val ? colors['color_wire_pow'] : colors['color_wire_con']
     }
 
     resolve() {
@@ -549,15 +569,22 @@ export default class ProgrammableLogic extends CircuitElement {
             andOutputs.push(hasAny ? result : 0)
         }
 
+        const orOutputs = []
         for (let o = 0; o < this.outputs; o++) {
             let result = 0
             for (let p = 0; p < this.productTerms; p++) {
                 if (this.orFuses[p][o]) result |= andOutputs[p]
             }
-            if (this.hasInverters && this.invertMask[o]) result ^= 1
-            this.outputNodes[o].value = result
+            orOutputs.push(result)
+            const final = (this.hasInverters && this.invertMask[o]) ? result ^ 1 : result
+            this.outputNodes[o].value = final
             simulationArea.simulationQueue.add(this.outputNodes[o])
         }
+
+        // Store for wire highlighting
+        this._inputLines = inputLines
+        this._andOutputs = andOutputs
+        this._orOutputs = orOutputs
     }
 }
 
