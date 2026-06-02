@@ -4,6 +4,7 @@ import { simulationArea } from '../simulationArea'
 import {
     colorToRGBA,
     correctWidth,
+    fillText4,
     lineTo,
     moveTo,
     rect,
@@ -134,9 +135,9 @@ export default class SevenSegDisplay extends CircuitElement {
             ['lightgrey', this.actualColor][this.e.value]
         )
         this.customDrawSegment(
-            -17,
+            -15,
             -38,
-            17,
+            15,
             -38,
             ['lightgrey', this.actualColor][this.a.value]
         )
@@ -150,16 +151,35 @@ export default class SevenSegDisplay extends CircuitElement {
         this.customDrawSegment(
             -15,
             38,
-            17,
+            15,
             38,
             ['lightgrey', this.actualColor][this.d.value]
         )
         ctx.beginPath()
         const dotColor =
             ['lightgrey', this.actualColor][this.dot.value] || 'lightgrey'
-        ctx.strokeStyle = dotColor
-        rect(ctx, xx + 22, yy + 42, 2, 2)
-        ctx.stroke()
+        ctx.fillStyle = dotColor
+        rect(ctx, xx + 21, yy + 35.5, 5, 5)
+        ctx.fill()
+
+        ctx.fillStyle = '#aaa'
+        fillText4(ctx, 'a',   0, -38.5, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'b',  18,   -20, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'c',  18,    20, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'd',   0,  37.5, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'e', -18,    20, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'f', -18,   -20, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'g',   0,  -0.5, xx, yy, this.direction, 7, 'center')
+
+        ctx.fillStyle = 'black'
+        fillText4(ctx, 'g',  -20, -44, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'f',  -10, -44, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'a',   10, -44, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'b',   20, -44, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'e',  -20,  44, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'd',  -10,  44, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'c',   10,  44, xx, yy, this.direction, 7, 'center')
+        fillText4(ctx, 'dp',  20,  44, xx, yy, this.direction, 7, 'center')
     }
 
     subcircuitDrawSegment(x1, y1, x2, y2, color, xxSegment, yySegment) {
