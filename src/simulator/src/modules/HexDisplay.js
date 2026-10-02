@@ -8,7 +8,9 @@ import {
     rect2,
     validColor,
     colorToRGBA,
+    fillText4,
 } from '../canvasApi'
+import { scheduleUpdate } from '../engine'
 /**
  * @class
  * HexDisplay
@@ -16,20 +18,143 @@ import {
  * @param {number} x - x coordinate of element.
  * @param {number} y - y coordinate of element.
  * @param {Scope=} scope - Cirucit on which element is drawn
+ * @param {string} color - segment color
+ * @param {string} connectorSide - side of the input pins: top, bottom, left, right
+ * @param {string} inputMode - 'bus' (one 4 bit pin) or 'bits' (four 1 bit pins)
  * @category modules
  */
 import { colors } from '../themer/themer'
 
+const SIDES = ['top', 'bottom', 'left', 'right']
+
+// Bus pin offset per side
+const BUS_PIN = { top: [0, -50], bottom: [0, 50], left: [-30, 0], right: [30, 0] }
+
+// Single bit pins, index = bit number. Same spacing as SevenSegDisplay pins.
+// LSB is on the right (top/bottom) or at the bottom (left/right).
+const BIT_POS = [20, 10, -10, -20]
+
+// Offset from a pin to its weight label, towards the inside of the box
+const LABEL_SHIFT = { top: [0, 6], bottom: [0, -6], left: [6, 0], right: [-6, 0] }
+
 export default class HexDisplay extends CircuitElement {
-    constructor(x, y, scope = globalScope, color = 'Red') {
+    constructor(
+        x, y, scope = globalScope, color = 'Red',
+        connectorSide = 'top', inputMode = 'bus'
+    ) {
         super(x, y, scope, 'RIGHT', 4)
         this.directionFixed = true
         this.fixedBitWidth = true
         this.setDimensions(30, 50)
-        this.inp = new Node(0, -50, 0, this, 4)
         this.direction = 'RIGHT'
         this.color = color
         this.actualColor = color
+        this.connectorSide = SIDES.includes(connectorSide) ? connectorSide : 'top'
+        this.inputMode = inputMode === 'bits' ? 'bits' : 'bus'
+        this._createPins()
+    }
+
+    _bitPinPos(i) {
+        const p = BIT_POS[i]
+        switch (this.connectorSide) {
+            case 'bottom': return [p, 50]
+            case 'left': return [-30, p]
+            case 'right': return [30, p]
+            default: return [p, -50]
+        }
+    }
+
+    // Only the pins of the active mode exist, so the bus mode save format stays unchanged
+    _createPins() {
+        if (this.inputMode === 'bits') {
+            this.inp = undefined
+            this.inpBits = [0, 1, 2, 3].map(
+                (i) => new Node(...this._bitPinPos(i), 0, this, 1, String(1 << i))
+            )
+        } else {
+            this.inpBits = undefined
+            this.inp = new Node(...BUS_PIN[this.connectorSide], 0, this, 4)
+        }
+    }
+
+    _pins() {
+        return this.inputMode === 'bits' ? this.inpBits : [this.inp]
+    }
+
+    _moveNode(node, lx, ly) {
+        node.leftx = lx
+        node.lefty = ly
+        node.updateRotation()
+    }
+
+    // Removes a pin and the wire leading to it, up to the next junction or element pin
+    _deletePinWithWire(pin) {
+        const doomed = []
+        for (const start of pin.connections) {
+            let prev = pin
+            let node = start
+            while (
+                node &&
+                node.type === NODE_INTERMEDIATE &&
+                node.connections.length <= 2 &&
+                !doomed.includes(node)
+            ) {
+                doomed.push(node)
+                const next = node.connections.find((n) => n !== prev)
+                prev = node
+                node = next
+            }
+        }
+        doomed.forEach((node) => node.delete())
+        this.nodeList = this.nodeList.filter((n) => n !== pin)
+        pin.delete()
+    }
+
+    /**
+     * @memberof HexDisplay
+     * fn to move the input pins to another side, the display stays upright
+     */
+    setConnectorSide(side) {
+        if (!SIDES.includes(side) || side === this.connectorSide) return
+        this.connectorSide = side
+        if (this.inputMode === 'bits') {
+            this.inpBits.forEach((node, i) => this._moveNode(node, ...this._bitPinPos(i)))
+        } else {
+            this._moveNode(this.inp, ...BUS_PIN[side])
+        }
+        scheduleUpdate()
+    }
+
+    /**
+     * @memberof HexDisplay
+     * fn to switch between one 4 bit bus pin and four 1 bit pins.
+     * Wires on the removed pins are deleted.
+     */
+    setInputMode(mode) {
+        if ((mode !== 'bus' && mode !== 'bits') || mode === this.inputMode) return
+        this._pins().forEach((pin) => this._deletePinWithWire(pin))
+        this.inputMode = mode
+        this._createPins()
+        scheduleUpdate()
+    }
+
+    // Arrow key shortcut moves the connector instead of rotating the display
+    newDirection(dir) {
+        this.setConnectorSide(
+            { UP: 'top', DOWN: 'bottom', LEFT: 'left', RIGHT: 'right' }[dir]
+        )
+    }
+
+    /**
+     * @memberof HexDisplay
+     * value shown on the display. Single bits: unconnected or undefined bits count as 0.
+     */
+    displayValue() {
+        if (this.inputMode === 'bus') return this.inp.value
+        return this.inpBits.reduce(
+            (sum, node, i) => sum + (node.value === 1 ? 1 << i : 0),
+            0
+        )
     }
 
     /**
@@ -57,10 +182,11 @@ export default class HexDisplay extends CircuitElement {
      */
     customSave() {
         const data = {
-            constructorParamaters: [this.color],
-            nodes: {
-                inp: findNode(this.inp),
-            },
+            constructorParamaters: [this.color, this.connectorSide, this.inputMode],
+            nodes:
+                this.inputMode === 'bits'
+                    ? { inpBits: this.inpBits.map(findNode) }
+                    : { inp: findNode(this.inp) },
         }
         return data
     }
@@ -101,7 +227,7 @@ export default class HexDisplay extends CircuitElement {
             e = 0,
             f = 0,
             g = 0
-        switch (this.inp.value) {
+        switch (this.displayValue()) {
             case 0:
                 a = b = c = d = e = f = 1
                 break
@@ -201,6 +327,15 @@ export default class HexDisplay extends CircuitElement {
             38,
             ['lightgrey', this.actualColor][d]
         )
+
+        if (this.inputMode === 'bits') {
+            const [dx, dy] = LABEL_SHIFT[this.connectorSide]
+            ctx.fillStyle = colors['text']
+            ;[0, 1, 2, 3].forEach((i) => {
+                const [px, py] = this._bitPinPos(i)
+                fillText4(ctx, String(1 << i), px + dx, py + dy, this.x, this.y, 'RIGHT', 7, 'center')
+            })
+        }
     }
 
     subcircuitDrawSegment(x1, y1, x2, y2, color, xxSegment, yySegment) {
@@ -234,7 +369,7 @@ export default class HexDisplay extends CircuitElement {
             f = 0,
             g = 0
 
-        switch (this.inp.value) {
+        switch (this.displayValue()) {
             case 0:
                 a = b = c = d = e = f = 1
                 break
@@ -365,9 +500,17 @@ export default class HexDisplay extends CircuitElement {
         }
     }
     generateVerilog() {
+        // Single bits: concatenate MSB first, unconnected bits are 0
+        const value =
+            this.inputMode === 'bits'
+                ? `{${[...this.inpBits]
+                      .reverse()
+                      .map((n) => (n.connections.length ? n.verilogLabel : "1'b0"))
+                      .join(', ')}}`
+                : this.inp.verilogLabel
         return `
       always @ (*)
-        $display("HexDisplay:${this.verilogLabel}=%d", ${this.inp.verilogLabel});`
+        $display("HexDisplay:${this.verilogLabel}=%d", ${value});`
     }
 }
 
@@ -378,7 +521,7 @@ export default class HexDisplay extends CircuitElement {
  * @category modules
  */
 HexDisplay.prototype.tooltipText =
-    'Hex Display ToolTip: Inputs a 4 Bit Hex number and displays it.'
+    'Hex Display ToolTip: Inputs a 4 Bit Hex number and displays it. Inputs as one 4 bit bus or as four single bits (8 4 2 1).'
 
 /**
  * @memberof HexDisplay
@@ -408,5 +551,17 @@ HexDisplay.prototype.mutableProperties = {
         name: 'Color: ',
         type: 'text',
         func: 'changeColor',
+    },
+    connectorSide: {
+        name: 'Connector',
+        type: 'select',
+        options: SIDES,
+        func: 'setConnectorSide',
+    },
+    inputMode: {
+        name: 'Inputs',
+        type: 'select',
+        options: ['bus', 'bits'],
+        func: 'setInputMode',
     },
 }
