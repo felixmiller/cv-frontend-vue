@@ -165,14 +165,14 @@ describe('HexDisplay connector side and input mode', () => {
 
         // side change and save/load keep all connections
         h.setConnectorSide('right');
-        expect(h.inpBits.map(pos)).toEqual([[30, 20], [30, 10], [30, -10], [30, -20]]);
+        expect(h.inpBits.map(pos)).toEqual([[30, 30], [30, 10], [30, -10], [30, -30]]);
         const saved = backUp(scope);
         expect(saved.HexDisplay[0].customData.constructorParamaters).toEqual(['Red', 'right', 'bits']);
         expect(Object.keys(saved.HexDisplay[0].customData.nodes)).toEqual(['inpBits']);
 
         const reloaded = loadScope(saved);
         const h2 = reloaded.HexDisplay[0];
-        expect(h2.inpBits.map(pos)).toEqual([[30, 20], [30, 10], [30, -10], [30, -20]]);
+        expect(h2.inpBits.map(pos)).toEqual([[30, 30], [30, 10], [30, -10], [30, -30]]);
         expect(h2.inpBits.map((n) => n.connections.length)).toEqual([1, 1, 0, 1]);
         play(reloaded);
         expect(h2.displayValue()).toBe(9);
