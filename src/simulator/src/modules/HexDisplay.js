@@ -30,9 +30,11 @@ const SIDES = ['top', 'bottom', 'left', 'right']
 // Bus pin offset per side
 const BUS_PIN = { top: [0, -50], bottom: [0, 50], left: [-30, 0], right: [30, 0] }
 
-// Single bit pins, index = bit number. Same spacing as SevenSegDisplay pins.
-// LSB is on the right (top/bottom) or at the bottom (left/right).
-const BIT_POS = [20, 10, -10, -20]
+// Single bit pins, index = bit number. LSB is on the right (top/bottom) or at the bottom (left/right).
+// Top/bottom: same spacing as SevenSegDisplay pins (the box is only 60 wide).
+// Left/right: evenly spaced, two grid units apart.
+const BIT_POS_H = [20, 10, -10, -20]
+const BIT_POS_V = [30, 10, -10, -30]
 
 // Offset from a pin to its weight label, towards the inside of the box
 const LABEL_SHIFT = { top: [0, 6], bottom: [0, -6], left: [6, 0], right: [-6, 0] }
@@ -55,12 +57,11 @@ export default class HexDisplay extends CircuitElement {
     }
 
     _bitPinPos(i) {
-        const p = BIT_POS[i]
         switch (this.connectorSide) {
-            case 'bottom': return [p, 50]
-            case 'left': return [-30, p]
-            case 'right': return [30, p]
-            default: return [p, -50]
+            case 'bottom': return [BIT_POS_H[i], 50]
+            case 'left': return [-30, BIT_POS_V[i]]
+            case 'right': return [30, BIT_POS_V[i]]
+            default: return [BIT_POS_H[i], -50]
         }
     }
 
