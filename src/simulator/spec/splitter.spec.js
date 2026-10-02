@@ -62,7 +62,7 @@ function oldFormatScope(state = 0xd6) {
 
 const outValues = (s) => s.outputs.map((o) => o.value);
 
-describe('Splitter flip', () => {
+describe('Splitter flip and fixed bit width', () => {
     beforeAll(async () => {
         const pinia = createPinia();
         setActivePinia(pinia);
@@ -120,6 +120,15 @@ describe('Splitter flip', () => {
         expect(s.inp1.connections.length).toBe(1);
         play(scope);
         expect(outValues(s)).toEqual([3, 2, 1]); // 0x2b = 001 010 11
+    });
+
+    test('bit width cannot be changed after creation', () => {
+        const scope = loadScope(oldFormatScope());
+        const s = scope.Splitter[0];
+        expect(s.fixedBitWidth).toBe(true);
+        s.newBitWidth(16);
+        expect(s.bitWidth).toBe(8);
+        expect([s.inp1, ...s.outputs].map((n) => n.bitWidth)).toEqual([8, 2, 3, 3]);
     });
 
     test('unflipped splitters save the flag as false', () => {

@@ -34,6 +34,9 @@ export default class Splitter extends CircuitElement {
     ) {
         super(x, y, scope, dir, bitWidth)
         this.rectangleObject = false
+        // Bit width is fixed by the split. Changing it afterwards set all pins to the
+        // new width and left the splitter broken, so the BitWidth field is hidden.
+        this.fixedBitWidth = true
 
         this.bitWidthSplit =
             bitWidthSplit ||
