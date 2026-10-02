@@ -40,7 +40,6 @@
               :key="element.name"
               :title="element.label"
               class="icon logixModules"
-              @click="createElement(element.name)"
               @mousedown="createElement(element.name)"
               @mouseover="getTooltipText(element.name)"
               @mouseleave="tooltipText = ''"
