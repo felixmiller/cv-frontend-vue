@@ -3,6 +3,7 @@ import Node, { findNode } from '../node'
 import { simulationArea } from '../simulationArea'
 import { correctWidth, lineTo, moveTo, fillText2 } from '../canvasApi'
 import { colors } from '../themer/themer'
+import { scheduleUpdate } from '../engine'
 
 function extractBits(num, start, end) {
     return (num << (32 - end)) >>> (32 - (end - start + 1))
@@ -18,6 +19,7 @@ function extractBits(num, start, end) {
  * @param {string=} dir - direction of element
  * @param {number=} bitWidth - bit width per node.
  * @param {number=} bitWidthSplit - number of input nodes
+ * @param {boolean=} flipped - mirrored across the direction axis (common bus at the other end)
  * @category modules
  */
 export default class Splitter extends CircuitElement {
@@ -27,7 +29,8 @@ export default class Splitter extends CircuitElement {
         scope = globalScope,
         dir = 'RIGHT',
         bitWidth = undefined,
-        bitWidthSplit = undefined
+        bitWidthSplit = undefined,
+        flipped = false
     ) {
         super(x, y, scope, dir, bitWidth)
         this.rectangleObject = false
@@ -45,8 +48,9 @@ export default class Splitter extends CircuitElement {
 
         this.setDimensions(10, (this.splitCount - 1) * 10 + 10)
         this.yOffset = (this.splitCount / 2 - 1) * 20
+        this.flipped = flipped === true || flipped === 'true'
 
-        this.inp1 = new Node(-10, 10 + this.yOffset, 0, this, this.bitWidth)
+        this.inp1 = new Node(-10, this._fy(10 + this.yOffset), 0, this, this.bitWidth)
 
         this.outputs = []
         // this.prevOutValues=new Array(this.splitCount)
@@ -54,7 +58,7 @@ export default class Splitter extends CircuitElement {
             this.outputs.push(
                 new Node(
                     20,
-                    i * 20 - this.yOffset - 20,
+                    this._fy(i * 20 - this.yOffset - 20),
                     0,
                     this,
                     this.bitWidthSplit[i]
@@ -63,6 +67,26 @@ export default class Splitter extends CircuitElement {
         }
 
         this.prevInpValue = undefined
+    }
+
+    // Flip mirrors the local y axis about the middle of the spine (y = -10), so pins stay on the grid
+    _fy(y) {
+        return this.flipped ? -20 - y : y
+    }
+
+    /**
+     * @memberof Splitter
+     * fn to flip the splitter: vertically for LEFT/RIGHT, horizontally for UP/DOWN
+     */
+    setFlipped(value) {
+        const flipped = value === true || value === 'true'
+        if (flipped === this.flipped) return
+        this.flipped = flipped
+        for (const node of [this.inp1, ...this.outputs]) {
+            node.lefty = -20 - node.lefty
+            node.updateRotation()
+        }
+        scheduleUpdate()
     }
 
     /**
@@ -76,6 +100,7 @@ export default class Splitter extends CircuitElement {
                 this.direction,
                 this.bitWidth,
                 this.bitWidthSplit,
+                this.flipped,
             ],
             nodes: {
                 outputs: this.outputs.map(findNode),
@@ -193,20 +218,20 @@ export default class Splitter extends CircuitElement {
         const xx = this.x
         const yy = this.y
         ctx.beginPath()
-        moveTo(ctx, -10, 10 + this.yOffset, xx, yy, this.direction)
-        lineTo(ctx, 0, 0 + this.yOffset, xx, yy, this.direction)
+        moveTo(ctx, -10, this._fy(10 + this.yOffset), xx, yy, this.direction)
+        lineTo(ctx, 0, this._fy(0 + this.yOffset), xx, yy, this.direction)
         lineTo(
             ctx,
             0,
-            -20 * (this.splitCount - 1) + this.yOffset,
+            this._fy(-20 * (this.splitCount - 1) + this.yOffset),
             xx,
             yy,
             this.direction
         )
         let bitCount = 0
         for (let i = this.splitCount - 1; i >= 0; i--) {
-            moveTo(ctx, 0, -20 * i + this.yOffset, xx, yy, this.direction)
-            lineTo(ctx, 20, -20 * i + this.yOffset, xx, yy, this.direction)
+            moveTo(ctx, 0, this._fy(-20 * i + this.yOffset), xx, yy, this.direction)
+            lineTo(ctx, 20, this._fy(-20 * i + this.yOffset), xx, yy, this.direction)
         }
         ctx.stroke()
         ctx.beginPath()
@@ -224,7 +249,7 @@ export default class Splitter extends CircuitElement {
                 ctx,
                 splitLabel,
                 16,
-                -20 * i + this.yOffset + 10,
+                this._fy(-20 * i + this.yOffset + 10),
                 xx,
                 yy,
                 this.direction
@@ -316,3 +341,17 @@ Splitter.prototype.tooltipText =
  */
 Splitter.prototype.helplink = 'https://docs.circuitverse.org/chapter4/chapter4-misc#splitter'
 Splitter.prototype.objectType = 'Splitter'
+
+/**
+ * @memberof Splitter
+ * Mutable properties of the element
+ * @type {JSON}
+ * @category modules
+ */
+Splitter.prototype.mutableProperties = {
+    flipped: {
+        name: 'Flip',
+        type: 'checkbox',
+        func: 'setFlipped',
+    },
+}
