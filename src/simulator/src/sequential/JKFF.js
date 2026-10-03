@@ -4,6 +4,7 @@ import { simulationArea } from '../simulationArea'
 import { correctWidth, lineTo, moveTo, fillText3, drawCircle2 } from '../canvasApi'
 import { colors } from '../themer/themer'
 import { scheduleUpdate } from '../engine'
+import { syncOptionalPins, releaseHiddenPins, deleteHiddenPins } from './optionalPins'
 
 /**
  * @class
@@ -41,27 +42,17 @@ export default class JKFF extends CircuitElement {
         this.clkInp = new Node(clockPolarity === 'neg' ? -40 : -30, 0, 0, this, 1, 'Clock')
         this.kInp = new Node(-30, 20, 0, this, 1, 'K')
         this.enNode = new Node(this._enNodeX(), 40, 0, this, 1, 'Enable')
-        if (!this.hasEnable) {
-            this.nodeList.splice(this.nodeList.indexOf(this.enNode), 1)
-            this.enNode.disabled = true
-        }
 
         this.qOutput = new Node(40, -20, 1, this, 1, 'Q')
         this.qnOutput = new Node(40, 20, 1, this, 1, 'Qn')
 
         this.preNode = new Node(0, this._preNodeY(), 0, this, 1,
             this.resetType === 'sync' ? 'Set' : 'Preset')
-        if (!this.hasPreset || this.resetType === 'none') {
-            this.nodeList.splice(this.nodeList.indexOf(this.preNode), 1)
-            this.preNode.disabled = true
-        }
 
         this.clrNode = new Node(0, this._clrNodeY(), 0, this, 1,
             this.resetType === 'sync' ? 'Reset' : 'Clear')
-        if (!this.hasClear || this.resetType === 'none') {
-            this.nodeList.splice(this.nodeList.indexOf(this.clrNode), 1)
-            this.clrNode.disabled = true
-        }
+
+        this._syncPins()
 
         this.state = 0
         this.masterState = 0
@@ -79,6 +70,26 @@ export default class JKFF extends CircuitElement {
     _clrNodeY() { const b = this._clrNodeBaseY(); return this.resetPolarity === 'low' ? b + 10 : b }
     _enNodeX() { return this.enablePolarity === 'low' ? -40 : -30 }
 
+    // Optional pins as [node, shown, x, y]
+    _optionalPins() {
+        const resets = this.resetType !== 'none'
+        return [
+            [this.preNode, this.hasPreset && resets, 0, this._preNodeY()],
+            [this.clrNode, this.hasClear && resets, 0, this._clrNodeY()],
+            [this.enNode, this.hasEnable, this._enNodeX(), 40],
+        ]
+    }
+
+    _syncPins() { syncOptionalPins(this, this._optionalPins()) }
+
+    // Files saved before hidden pins were parked can have wires on hidden pins
+    postLoad() { releaseHiddenPins(this, this._optionalPins().map(([pin]) => pin)) }
+
+    delete() {
+        deleteHiddenPins(this, this._optionalPins().map(([pin]) => pin))
+        super.delete()
+    }
+
     get preset_async() { return this.hasPreset }
     get preset_sync() { return this.hasPreset }
     get clear_async() { return this.hasClear }
@@ -89,13 +100,7 @@ export default class JKFF extends CircuitElement {
         if (this.hasPreset === active) return
         this.hasPreset = active
         this.preNode.label = this.resetType === 'sync' ? 'Set' : 'Preset'
-        const shouldBeActive = active && this.resetType !== 'none'
-        this.preNode.disabled = !shouldBeActive
-        if (shouldBeActive && !this.nodeList.includes(this.preNode)) {
-            this._moveNode(this.preNode, 0, this._preNodeY())
-            this.nodeList.push(this.preNode)
-        }
-        if (!shouldBeActive) { const i = this.nodeList.indexOf(this.preNode); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
 
@@ -104,13 +109,7 @@ export default class JKFF extends CircuitElement {
         if (this.hasClear === active) return
         this.hasClear = active
         this.clrNode.label = this.resetType === 'sync' ? 'Reset' : 'Clear'
-        const shouldBeActive = active && this.resetType !== 'none'
-        this.clrNode.disabled = !shouldBeActive
-        if (shouldBeActive && !this.nodeList.includes(this.clrNode)) {
-            this._moveNode(this.clrNode, 0, this._clrNodeY())
-            this.nodeList.push(this.clrNode)
-        }
-        if (!shouldBeActive) { const i = this.nodeList.indexOf(this.clrNode); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
 
@@ -121,28 +120,14 @@ export default class JKFF extends CircuitElement {
         this.preNode.label = val === 'sync' ? 'Set' : 'Preset'
         this.clrNode.label = val === 'sync' ? 'Reset' : 'Clear'
         if (wasNone && val !== 'none') this.hasClear = true
-        const preActive = this.hasPreset && val !== 'none'
-        this.preNode.disabled = !preActive
-        if (preActive && !this.nodeList.includes(this.preNode)) {
-            this._moveNode(this.preNode, 0, this._preNodeY())
-            this.nodeList.push(this.preNode)
-        }
-        if (!preActive) { const i = this.nodeList.indexOf(this.preNode); if (i !== -1) this.nodeList.splice(i, 1) }
-        const clrActive = this.hasClear && val !== 'none'
-        this.clrNode.disabled = !clrActive
-        if (clrActive && !this.nodeList.includes(this.clrNode)) {
-            this._moveNode(this.clrNode, 0, this._clrNodeY())
-            this.nodeList.push(this.clrNode)
-        }
-        if (!clrActive) { const i = this.nodeList.indexOf(this.clrNode); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
 
     setResetPolarity(val) {
         if (this.resetPolarity === val) return
         this.resetPolarity = val
-        if (this.hasPreset && this.resetType !== 'none') this._moveNode(this.preNode, 0, this._preNodeY())
-        if (this.hasClear && this.resetType !== 'none') this._moveNode(this.clrNode, 0, this._clrNodeY())
+        this._syncPins()
         scheduleUpdate()
     }
 
@@ -154,16 +139,6 @@ export default class JKFF extends CircuitElement {
         scheduleUpdate()
     }
 
-    setEnablePolarity(val) {
-        if (this.enablePolarity !== val) {
-            this.enablePolarity = val
-            if (this.hasEnable) this._moveNode(this.enNode, this._enNodeX(), this.enNode.lefty)
-            scheduleUpdate()
-        }
-    }
-
-    setOutputType(val) { if (this.outputType !== val) { this.outputType = val; scheduleUpdate() } }
-
     setHasEnable(val) {
         const active = (val === true || val === 'true')
         if (this.hasEnable === active) return
@@ -171,12 +146,18 @@ export default class JKFF extends CircuitElement {
         if (!active && this.outputType === 'tristate') this.outputType = 'pushpull'
         const hh = active ? 60 : 40
         this.setDimensions(30, hh)
-        this._moveNode(this.clrNode, 0, this._clrNodeY())
-        this.enNode.disabled = !active
-        if (active && !this.nodeList.includes(this.enNode)) this.nodeList.push(this.enNode)
-        if (!active) { const i = this.nodeList.indexOf(this.enNode); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
+
+    setEnablePolarity(val) {
+        if (this.enablePolarity === val) return
+        this.enablePolarity = val
+        this._syncPins()
+        scheduleUpdate()
+    }
+
+    setOutputType(val) { if (this.outputType !== val) { this.outputType = val; scheduleUpdate() } }
 
     isResolvable() { return true }
 

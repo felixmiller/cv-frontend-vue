@@ -79,6 +79,8 @@ function loadModule(data, scope) {
             }
         }
     }
+    // Hook for elements that need to fix up their restored nodes
+    if (obj.postLoad) obj.postLoad()
     if (data.subcircuitMetadata)
         obj.subcircuitMetadata = data['subcircuitMetadata']
 }

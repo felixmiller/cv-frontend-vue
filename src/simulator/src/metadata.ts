@@ -65,6 +65,7 @@ export const circuitElementList = [
     "TFF",
     "RSFF",
     "JKFF",
+    "HmCounter",
     "DLatch",
     "RSLatch",
     "PAL",
@@ -103,6 +104,7 @@ export const inputList = [
     "TFF",
     "RSFF",
     "JKFF",
+    "HmCounter",
     "DLatch",
     "RSLatch"
 ]
@@ -120,7 +122,8 @@ export const subCircuitInputList = [
     "ConstantVal",
     "Clock",
     "Button",
-    "Counter"
+    "Counter",
+    "HmCounter"
 ]
 interface NameLabel {
     name: string;
@@ -187,7 +190,8 @@ export const elementHierarchy: Record<string, NameLabel[]> = {
         { name: "RSFF",   label: "RS Flip Flop" },
         { name: "JKFF",   label: "JK Flip Flop" },
         { name: "DLatch",  label: "D Latch" },
-        { name: "RSLatch", label: "RS Latch" }
+        { name: "RSLatch", label: "RS Latch" },
+        { name: "HmCounter", label: "Binary Counter" }
     ],
     "Programmable Logic (HM)": [
         { name: "PAL", label: "PAL" },

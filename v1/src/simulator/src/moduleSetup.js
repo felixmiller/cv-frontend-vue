@@ -59,6 +59,7 @@ import DFF from './sequential/DFF'
 import TFF from './sequential/TFF'
 import RSFF from './sequential/RSFF'
 import JKFF from './sequential/JKFF'
+import HmCounter from './sequential/HmCounter'
 import DLatch from './sequential/DLatch'
 import RSLatch from './sequential/RSLatch'
 import PAL from './sequential/PAL'
@@ -146,6 +147,7 @@ export default function setupModules() {
         TFF,
         RSFF,
         JKFF,
+        HmCounter,
         DLatch,
         RSLatch,
         PAL,

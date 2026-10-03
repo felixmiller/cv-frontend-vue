@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+    <rect x="7" y="7" width="36" height="36" fill="#fff" fill-opacity=".8" stroke="#000" stroke-width="3" stroke-miterlimit="10"/>
+    <!-- Counter qualifier -->
+    <text font-family="Raleway" font-size="10" font-weight="bold" fill="#000" x="25" y="17" text-anchor="middle" dominant-baseline="middle">CTR</text>
+    <!-- Clock triangle -->
+    <path fill="none" stroke="#000" stroke-width="2" stroke-miterlimit="10" d="M7 26 L13 31 L7 36"/>
+    <!-- Labels -->
+    <text font-family="Raleway" font-size="11" fill="#000" x="15" y="31" dominant-baseline="middle">C</text>
+    <text font-family="Raleway" font-size="11" fill="#000" x="40" y="31" text-anchor="end" dominant-baseline="middle">Q</text>
+    <!-- Port dots: clock, count output, reset -->
+    <circle cx="4" cy="31" r="3" fill="green"/>
+    <circle cx="46" cy="31" r="3" fill="green"/>
+    <circle cx="25" cy="46" r="3" fill="green"/>
+</svg>
