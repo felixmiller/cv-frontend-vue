@@ -4,6 +4,7 @@ import { simulationArea } from '../simulationArea'
 import { correctWidth, lineTo, moveTo, fillText3, drawCircle2 } from '../canvasApi'
 import { colors } from '../themer/themer'
 import { scheduleUpdate } from '../engine'
+import { syncOptionalPins, releaseHiddenPins, deleteHiddenPins } from './optionalPins'
 
 /**
  * @class
@@ -39,32 +40,18 @@ export default class RSLatch extends CircuitElement {
 
         this.sInp = new Node(-30, -20, 0, this, 1, 'S')
         this.gInp = new Node(this._gNodeX(), 0, 0, this, 1, 'C')
-        if (!this.hasClock) {
-            this.nodeList.splice(this.nodeList.indexOf(this.gInp), 1)
-            this.gInp.disabled = true
-        }
         this.rInp = new Node(-30,  20, 0, this, 1, 'R')
 
         this.qOutput  = new Node(40, -20, 1, this, 1, 'Q')
         this.qnOutput = new Node(40,  20, 1, this, 1, 'Qn')
 
         this.enNode = new Node(this._enNodeX(), 40, 0, this, 1, 'Enable')
-        if (!this.hasEnable) {
-            this.nodeList.splice(this.nodeList.indexOf(this.enNode), 1)
-            this.enNode.disabled = true
-        }
 
         this.preNode = new Node(0, this._preNodeY(), 0, this, 1, 'Preset')
-        if (!this.hasPreset) {
-            this.nodeList.splice(this.nodeList.indexOf(this.preNode), 1)
-            this.preNode.disabled = true
-        }
 
         this.clrNode = new Node(0, this._clrNodeY(), 0, this, 1, 'Clear')
-        if (!this.hasClear) {
-            this.nodeList.splice(this.nodeList.indexOf(this.clrNode), 1)
-            this.clrNode.disabled = true
-        }
+
+        this._syncPins()
 
         this.state = 0
     }
@@ -81,16 +68,31 @@ export default class RSLatch extends CircuitElement {
     _clrNodeBaseY()   { return this.hasEnable ? 60 : 40 }
     _clrNodeY()       { const b = this._clrNodeBaseY(); return this.resetPolarity === 'low' ? b + 10 : b }
 
+    // Optional pins as [node, shown, x, y]
+    _optionalPins() {
+        return [
+            [this.preNode, this.hasPreset, 0, this._preNodeY()],
+            [this.clrNode, this.hasClear, 0, this._clrNodeY()],
+            [this.enNode, this.hasEnable, this._enNodeX(), 40],
+            [this.gInp, this.hasClock, this._gNodeX(), 0],
+        ]
+    }
+
+    _syncPins() { syncOptionalPins(this, this._optionalPins()) }
+
+    // Files saved before hidden pins were parked can have wires on hidden pins
+    postLoad() { releaseHiddenPins(this, this._optionalPins().map(([pin]) => pin)) }
+
+    delete() {
+        deleteHiddenPins(this, this._optionalPins().map(([pin]) => pin))
+        super.delete()
+    }
+
     setHasPreset(val) {
         const active = (val === true || val === 'true')
         if (this.hasPreset === active) return
         this.hasPreset = active
-        this.preNode.disabled = !active
-        if (active && !this.nodeList.includes(this.preNode)) {
-            this._moveNode(this.preNode, 0, this._preNodeY())
-            this.nodeList.push(this.preNode)
-        }
-        if (!active) { const i = this.nodeList.indexOf(this.preNode); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
 
@@ -98,27 +100,21 @@ export default class RSLatch extends CircuitElement {
         const active = (val === true || val === 'true')
         if (this.hasClear === active) return
         this.hasClear = active
-        this.clrNode.disabled = !active
-        if (active && !this.nodeList.includes(this.clrNode)) {
-            this._moveNode(this.clrNode, 0, this._clrNodeY())
-            this.nodeList.push(this.clrNode)
-        }
-        if (!active) { const i = this.nodeList.indexOf(this.clrNode); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
 
     setResetPolarity(val) {
         if (this.resetPolarity === val) return
         this.resetPolarity = val
-        if (this.hasPreset) this._moveNode(this.preNode, 0, this._preNodeY())
-        if (this.hasClear)  this._moveNode(this.clrNode, 0, this._clrNodeY())
+        this._syncPins()
         scheduleUpdate()
     }
 
     setGatePolarity(val) {
         if (this.gatePolarity === val) return
         this.gatePolarity = val
-        if (this.hasClock) this._moveNode(this.gInp, this._gNodeX(), this.gInp.lefty)
+        this._syncPins()
         scheduleUpdate()
     }
 
@@ -126,12 +122,7 @@ export default class RSLatch extends CircuitElement {
         const active = (val === true || val === 'true')
         if (this.hasClock === active) return
         this.hasClock = active
-        this.gInp.disabled = !active
-        if (active && !this.nodeList.includes(this.gInp)) {
-            this._moveNode(this.gInp, this._gNodeX(), 0)
-            this.nodeList.push(this.gInp)
-        }
-        if (!active) { const i = this.nodeList.indexOf(this.gInp); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
 
@@ -141,17 +132,14 @@ export default class RSLatch extends CircuitElement {
         this.hasEnable = active
         if (!active && this.outputType === 'tristate') this.outputType = 'pushpull'
         this.setDimensions(30, active ? 60 : 40)
-        this._moveNode(this.clrNode, 0, this._clrNodeY())
-        this.enNode.disabled = !active
-        if (active && !this.nodeList.includes(this.enNode)) this.nodeList.push(this.enNode)
-        if (!active) { const i = this.nodeList.indexOf(this.enNode); if (i !== -1) this.nodeList.splice(i, 1) }
+        this._syncPins()
         scheduleUpdate()
     }
 
     setEnablePolarity(val) {
         if (this.enablePolarity === val) return
         this.enablePolarity = val
-        if (this.hasEnable) this._moveNode(this.enNode, this._enNodeX(), this.enNode.lefty)
+        this._syncPins()
         scheduleUpdate()
     }
 
